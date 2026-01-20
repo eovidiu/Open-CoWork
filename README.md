@@ -4,7 +4,7 @@ A desktop AI coding assistant for everyone. Open source alternative to Claude Co
 
 **If you find this project useful, please consider giving it a star!**
 
-[![GitHub stars](https://img.shields.io/github/stars/autonoma/open-cowork?style=social)](https://github.com/autonoma/open-cowork)
+[![GitHub stars](https://img.shields.io/github/stars/Autonoma-Labs/Open-CoWork?style=social)](https://github.com/Autonoma-Labs/Open-CoWork)
 
 ---
 
@@ -19,7 +19,7 @@ A desktop AI coding assistant for everyone. Open source alternative to Claude Co
 
 ```bash
 # Clone the repository
-git clone https://github.com/autonoma/open-cowork.git
+git clone https://github.com/Autonoma-Labs/Open-CoWork.git
 cd open-cowork
 
 # Install dependencies
@@ -73,7 +73,7 @@ We're actively looking for contributors to help with:
 4. Push to the branch (`git push origin fix/my-bug-fix`)
 5. Open a Pull Request
 
-Please report bugs at [GitHub Issues](https://github.com/autonoma/open-cowork/issues).
+Please report bugs at [GitHub Issues](https://github.com/Autonoma-Labs/Open-CoWork/issues).
 
 ---
 
@@ -106,4 +106,4 @@ Please report bugs at [GitHub Issues](https://github.com/autonoma/open-cowork/is
 
 **Like what you see? Star the repo to show your support!**
 
-[![Star this repo](https://img.shields.io/github/stars/autonoma/open-cowork?style=for-the-badge&logo=github)](https://github.com/autonoma/open-cowork)
+[![Star this repo](https://img.shields.io/github/stars/Autonoma-Labs/Open-CoWork?style=for-the-badge&logo=github)](https://github.com/Autonoma-Labs/Open-CoWork)
