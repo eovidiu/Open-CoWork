@@ -1,6 +1,7 @@
 {
   "name": "open-cowork",
   "version": "1.0.0",
+  "packageManager": "pnpm@9.15.0",
   "description": "Desktop AI coding assistant for non-technical users",
   "author": "Autonoma <hello@getautonoma.com>",
   "homepage": "https://getautonoma.com",
