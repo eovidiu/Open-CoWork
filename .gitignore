@@ -35,5 +35,6 @@ pnpm-debug.log*
 *.tsbuildinfo
 
 # Generated files
+src/main/generated/prisma
 src/renderer/components/ui/
 .playwright-mcp
