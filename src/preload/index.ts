@@ -7,7 +7,7 @@ const api = {
   getConversations: () => ipcRenderer.invoke('db:conversations:list'),
   getConversation: (id: string) => ipcRenderer.invoke('db:conversations:get', id),
   createConversation: (title: string) => ipcRenderer.invoke('db:conversations:create', title),
-  updateConversation: (id: string, data: { title?: string }) =>
+  updateConversation: (id: string, data: { title?: string; pinned?: boolean }) =>
     ipcRenderer.invoke('db:conversations:update', id, data),
   deleteConversation: (id: string) => ipcRenderer.invoke('db:conversations:delete', id),
 

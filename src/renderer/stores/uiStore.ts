@@ -40,6 +40,7 @@ interface UIState {
   selectedModel: string
   customModels: ModelOption[]
   searchEnabled: boolean // Whether to use :online suffix for search-capable models
+  pinnedSectionCollapsed: boolean // Whether the pinned chats section is collapsed
 
   // Actions
   toggleSidebar: () => void
@@ -59,6 +60,8 @@ interface UIState {
   removeCustomModel: (id: string) => void
   toggleSearch: () => void
   setSearchEnabled: (enabled: boolean) => void
+  togglePinnedSection: () => void
+  setPinnedSectionCollapsed: (collapsed: boolean) => void
 }
 
 export const useUIStore = create<UIState>()(
@@ -74,6 +77,7 @@ export const useUIStore = create<UIState>()(
       selectedModel: 'google/gemini-3-flash-preview',
       customModels: [],
       searchEnabled: false,
+      pinnedSectionCollapsed: false,
 
       toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
@@ -132,7 +136,10 @@ export const useUIStore = create<UIState>()(
         })),
 
       toggleSearch: () => set((state) => ({ searchEnabled: !state.searchEnabled })),
-      setSearchEnabled: (enabled) => set({ searchEnabled: enabled })
+      setSearchEnabled: (enabled) => set({ searchEnabled: enabled }),
+
+      togglePinnedSection: () => set((state) => ({ pinnedSectionCollapsed: !state.pinnedSectionCollapsed })),
+      setPinnedSectionCollapsed: (collapsed) => set({ pinnedSectionCollapsed: collapsed })
     }),
     {
       name: 'open-cowork-ui',
@@ -141,7 +148,8 @@ export const useUIStore = create<UIState>()(
         customModels: state.customModels,
         sidebarOpen: state.sidebarOpen,
         todoPanelOpen: state.todoPanelOpen,
-        searchEnabled: state.searchEnabled
+        searchEnabled: state.searchEnabled,
+        pinnedSectionCollapsed: state.pinnedSectionCollapsed
       })
     }
   )

@@ -29,7 +29,7 @@ export function registerDatabaseHandlers(): void {
     })
   })
 
-  ipcMain.handle('db:conversations:update', async (_, id: string, data: { title?: string }) => {
+  ipcMain.handle('db:conversations:update', async (_, id: string, data: { title?: string; pinned?: boolean }) => {
     return prisma.conversation.update({
       where: { id },
       data

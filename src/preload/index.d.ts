@@ -4,6 +4,7 @@ import { ElectronAPI } from '@electron-toolkit/preload'
 interface Conversation {
   id: string
   title: string
+  pinned: boolean
   createdAt: Date
   updatedAt: Date
 }
@@ -121,7 +122,7 @@ interface Api {
   getConversations: () => Promise<Conversation[]>
   getConversation: (id: string) => Promise<Conversation | null>
   createConversation: (title: string) => Promise<Conversation>
-  updateConversation: (id: string, data: { title?: string }) => Promise<Conversation>
+  updateConversation: (id: string, data: { title?: string; pinned?: boolean }) => Promise<Conversation>
   deleteConversation: (id: string) => Promise<void>
 
   // Database - Messages

@@ -16,7 +16,7 @@ export function useConversations() {
   })
 
   const updateConversation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: { title?: string } }) =>
+    mutationFn: ({ id, data }: { id: string; data: { title?: string; pinned?: boolean } }) =>
       window.api.updateConversation(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['conversations'] })
