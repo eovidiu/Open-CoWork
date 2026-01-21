@@ -1,11 +1,25 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest'
 import { createTestDb } from '../helpers/test-db'
-import { createImageService } from '../../src/main/services/image.service'
-import { createConversationService } from '../../src/main/services/conversation.service'
 import type { PrismaClient } from '@prisma/client'
 import { mkdtempSync, rmSync, existsSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
+
+// Mock electron BEFORE importing modules that use it
+vi.mock('electron', () => ({
+  app: {
+    getPath: vi.fn((name: string) => {
+      if (name === 'userData') {
+        return tmpdir()
+      }
+      return tmpdir()
+    })
+  }
+}))
+
+// Import after mocking
+import { createImageService } from '../../src/main/services/image.service'
+import { createConversationService } from '../../src/main/services/conversation.service'
 
 // Sample 1x1 PNG image as base64 data URL
 const SAMPLE_PNG_DATA_URL =
