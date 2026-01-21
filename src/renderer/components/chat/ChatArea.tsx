@@ -1003,20 +1003,23 @@ function ToolCallBlock({ toolCall }: ToolCallBlockProps) {
     }
   }
 
-  // Check if output has a screenshot (for browser tools)
+  // Check if output has a screenshot (for browser tools) or imageRef
   let screenshot: string | null = null
+  let imageRef: { imageId: number; hint: string } | null = null
   let parsedOutput: Record<string, unknown> | null = null
   if (toolCall.output) {
     try {
       parsedOutput = JSON.parse(toolCall.output)
       if (parsedOutput && typeof parsedOutput === 'object' && 'screenshot' in parsedOutput) {
         screenshot = parsedOutput.screenshot as string
-        console.log('Screenshot found, starts with:', screenshot?.substring(0, 50), 'length:', screenshot?.length)
       }
       // Also check for 'image' field (browserScreenshot tool)
       if (parsedOutput && typeof parsedOutput === 'object' && 'image' in parsedOutput) {
         screenshot = parsedOutput.image as string
-        console.log('Image found, starts with:', screenshot?.substring(0, 50), 'length:', screenshot?.length)
+      }
+      // Check for imageRef (image registry reference)
+      if (parsedOutput && typeof parsedOutput === 'object' && 'imageRef' in parsedOutput) {
+        imageRef = parsedOutput.imageRef as { imageId: number; hint: string }
       }
     } catch (e) {
       console.error('Failed to parse tool output:', e)
@@ -1050,12 +1053,18 @@ function ToolCallBlock({ toolCall }: ToolCallBlockProps) {
 
       {/* Show screenshot for browser tools (always visible, not in expanded) */}
       {isBrowserTool && screenshot && toolCall.status === 'success' && (
-        <div className="mt-2">
+        <div className="mt-2 relative inline-block">
           <img
             src={screenshot}
             alt="Browser screenshot"
             className="w-full max-w-md rounded-md border"
           />
+          {/* Image ID badge overlay */}
+          {imageRef && (
+            <div className="absolute top-2 left-2 rounded bg-black/70 px-2 py-1 text-xs font-medium text-white">
+              #{imageRef.imageId}
+            </div>
+          )}
         </div>
       )}
 

@@ -3,6 +3,7 @@ import { getDatabase } from '../database'
 import { createConversationService } from '../services/conversation.service'
 import { createMessageService } from '../services/message.service'
 import { createSkillService } from '../services/skill.service'
+import { createImageService, type ImageService } from '../services/image.service'
 import type {
   CreateMessageInput,
   UpdateMessageInput,
@@ -12,6 +13,17 @@ import type {
   UpdateSkillInput,
   UpdateConversationInput
 } from '../../shared/types'
+
+// Lazy-loaded image service to ensure database is fully initialized
+let imageService: ImageService | null = null
+
+function getImageService(): ImageService {
+  if (!imageService) {
+    const prisma = getDatabase()
+    imageService = createImageService(prisma)
+  }
+  return imageService
+}
 
 export function registerDatabaseHandlers(): void {
   const prisma = getDatabase()
@@ -37,6 +49,9 @@ export function registerDatabaseHandlers(): void {
   })
 
   ipcMain.handle('db:conversations:delete', async (_, id: string) => {
+    // Clean up image files before deleting the conversation
+    // (Prisma cascade will handle DB records, but we need to delete files)
+    await getImageService().deleteConversationImages(id)
     return conversationService.delete(id)
   })
 

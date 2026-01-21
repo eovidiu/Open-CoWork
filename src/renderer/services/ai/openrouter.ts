@@ -106,7 +106,8 @@ export async function generateConversationTitle(
             content: `Generate a very short title (3-6 words max) for a conversation that starts with this message. Return ONLY the title, no quotes, no explanation:\n\n${userMessage.slice(0, 300)}`
           }
         ],
-        maxTokens: 30
+        maxTokens: 30,
+        maxRetries: 2
       })
 
       // Clean up the title
@@ -184,7 +185,8 @@ ${conversationText}
 Provide only the summary, no preamble.`
         }
       ],
-      maxTokens: 2000
+      maxTokens: 2000,
+      maxRetries: 2
     })
 
     const summary = result.text.trim()
@@ -225,6 +227,7 @@ interface StreamChatOptions {
   tools: Record<string, CoreTool>
   model?: string
   maxSteps?: number
+  maxRetries?: number
   abortSignal?: AbortSignal
   onText?: (text: string) => void
   onToolCall?: (toolCall: ToolCallEvent) => void
@@ -238,6 +241,7 @@ export async function streamChat({
   tools,
   model = 'anthropic/claude-sonnet-4',
   maxSteps = 15,
+  maxRetries = 3,
   abortSignal,
   onText,
   onToolCall,
@@ -261,6 +265,7 @@ export async function streamChat({
       messages: coreMessages,
       tools,
       maxSteps, // Allow multiple agent steps for tool use and self-correction
+      maxRetries, // Retry on transient errors (default: 3)
       abortSignal,
 
       // This callback fires after each agent step with full context
@@ -336,6 +341,13 @@ function formatError(error: unknown): Error {
     }
     if (msg.includes('model') && (msg.includes('not found') || msg.includes('unavailable'))) {
       return new Error('The selected model is not available. Please try a different model.')
+    }
+    // Network/SSL errors
+    if (msg.includes('failed to fetch') || msg.includes('network') || msg.includes('ssl') || msg.includes('err_ssl')) {
+      return new Error('Network error connecting to OpenRouter. Please check your internet connection and try again.')
+    }
+    if (msg.includes('timeout') || msg.includes('timed out')) {
+      return new Error('Request timed out. Please try again.')
     }
     return error
   }

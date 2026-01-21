@@ -15,6 +15,23 @@ model Conversation {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   messages  Message[]
+  images    Image[]
+}
+
+model Image {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sequenceNum    Int          // Auto-incrementing per conversation (1, 2, 3...)
+  filename       String       // UUID.ext on filesystem
+  mimeType       String
+  source         String       // 'upload' | 'screenshot' | 'viewImage'
+  sourceUrl      String?      // For screenshots (page URL)
+  sourceName     String?      // For uploads (original filename)
+  description    String?      // Cached description
+  createdAt      DateTime     @default(now())
+
+  @@unique([conversationId, sequenceNum])
 }
 
 model Message {

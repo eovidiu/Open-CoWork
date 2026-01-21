@@ -7,7 +7,8 @@ export type {
   ToolCall,
   Skill,
   Permission,
-  Settings
+  Settings,
+  Image
 } from '@prisma/client'
 
 // Input types for service operations
@@ -98,6 +99,11 @@ export interface BashResult {
   exitCode: number | string
 }
 
+export interface ImageReference {
+  imageId: number
+  hint: string
+}
+
 export interface BrowserResult {
   success?: boolean
   error?: boolean
@@ -105,6 +111,8 @@ export interface BrowserResult {
   url?: string
   title?: string
   screenshot?: string
+  imageRef?: ImageReference
+  imageNote?: string
 }
 
 export interface BrowserContentResult extends BrowserResult {

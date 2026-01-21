@@ -4,6 +4,7 @@ import { registerPermissionHandlers } from './permissions.ipc'
 import { registerSettingsHandlers } from './settings.ipc'
 import { registerBrowserHandlers, cleanupBrowser } from './browser.ipc'
 import { registerSkillRegistryHandlers } from './skillregistry.ipc'
+import { registerImageHandlers } from './image.ipc'
 
 export function registerIpcHandlers(): void {
   registerDatabaseHandlers()
@@ -12,6 +13,7 @@ export function registerIpcHandlers(): void {
   registerSettingsHandlers()
   registerBrowserHandlers()
   registerSkillRegistryHandlers()
+  registerImageHandlers()
 }
 
 export { cleanupBrowser }

@@ -111,7 +111,23 @@ const api = {
 
   // Skill Registry
   skillRegistrySearch: (query: string) => ipcRenderer.invoke('skillregistry:search', query),
-  skillRegistryGetContent: (skillId: string) => ipcRenderer.invoke('skillregistry:getContent', skillId)
+  skillRegistryGetContent: (skillId: string) => ipcRenderer.invoke('skillregistry:getContent', skillId),
+
+  // Image Registry
+  saveImage: (
+    conversationId: string,
+    base64Data: string,
+    mimeType: string,
+    source: 'upload' | 'screenshot' | 'viewImage',
+    meta?: { url?: string; filename?: string }
+  ) => ipcRenderer.invoke('image:save', conversationId, base64Data, mimeType, source, meta),
+  getImage: (conversationId: string, sequenceNum: number) =>
+    ipcRenderer.invoke('image:get', conversationId, sequenceNum),
+  getImageMetadata: (conversationId: string, sequenceNum: number) =>
+    ipcRenderer.invoke('image:getMetadata', conversationId, sequenceNum),
+  updateImageDescription: (conversationId: string, sequenceNum: number, description: string) =>
+    ipcRenderer.invoke('image:updateDescription', conversationId, sequenceNum, description),
+  listImages: (conversationId: string) => ipcRenderer.invoke('image:list', conversationId)
 }
 
 // Expose in main world

@@ -3,6 +3,56 @@ import { tool } from 'ai'
 import { useTodoStore, type Todo, type TodoStatus } from '../../stores/todoStore'
 import { useBrowserStore } from '../../stores/browserStore'
 import { useQuestionStore } from '../../stores/questionStore'
+import { useUIStore } from '../../stores/uiStore'
+import { queryImage as queryImageService } from './imageQuery'
+
+// Helper to get the active conversation ID from the UI store
+function getActiveConversationId(): string | null {
+  return useUIStore.getState().activeConversationId
+}
+
+// Helper to get API key
+async function getApiKey(): Promise<string | null> {
+  return await window.api.getApiKey()
+}
+
+// Helper to save a screenshot to the image registry
+async function saveScreenshotToRegistry(
+  base64Data: string,
+  sourceUrl?: string
+): Promise<{ imageId: number; hint: string } | null> {
+  const conversationId = getActiveConversationId()
+  if (!conversationId) {
+    console.warn('[ImageRegistry] No active conversation, cannot save screenshot')
+    return null
+  }
+
+  try {
+    const imageId = await window.api.saveImage(
+      conversationId,
+      base64Data,
+      'image/png',
+      'screenshot',
+      { url: sourceUrl }
+    )
+
+    // Generate a hint for the AI
+    let hint = 'Screenshot'
+    if (sourceUrl) {
+      try {
+        const url = new URL(sourceUrl)
+        hint = `Screenshot of ${url.hostname}`
+      } catch {
+        hint = `Screenshot of ${sourceUrl}`
+      }
+    }
+
+    return { imageId, hint }
+  } catch (error) {
+    console.error('[ImageRegistry] Failed to save screenshot:', error)
+    return null
+  }
+}
 
 // Helper to check if browser is configured
 async function checkBrowserConfigured(): Promise<{ configured: boolean; needsSetup?: boolean }> {
@@ -160,6 +210,65 @@ export const tools = {
             : 'Check if the file exists, is a valid image format (PNG, JPG, GIF, WEBP), and you have permission to read it. You may retry once if the path was incorrect.',
           requiresRestart: isHandlerMissing,
           retryable: !isHandlerMissing
+        }
+      }
+    }
+  }),
+
+  queryImage: tool({
+    description: `Query an image from the registry. Images (screenshots and user uploads) are stored with IDs shown as [Image #N] in tool results.
+
+Use this to ask questions about screenshots or uploaded images. Examples:
+- "What text is visible on the page?"
+- "Is there a login button?"
+- "Describe the main content"
+- "What error message is shown?"
+
+You can query the same image multiple times with different questions.`,
+    parameters: z.object({
+      imageId: z.number().describe('The image ID (the number N from [Image #N])'),
+      prompt: z.string().describe('Your question about the image')
+    }),
+    execute: async ({ imageId, prompt }) => {
+      const conversationId = getActiveConversationId()
+      if (!conversationId) {
+        return {
+          error: true,
+          message: 'No active conversation',
+          suggestion: 'This tool requires an active conversation context.'
+        }
+      }
+
+      const apiKey = await getApiKey()
+      if (!apiKey) {
+        return {
+          error: true,
+          message: 'No API key configured',
+          suggestion: 'Please set your OpenRouter API key in settings.'
+        }
+      }
+
+      try {
+        const result = await queryImageService(apiKey, conversationId, imageId, prompt)
+
+        if (!result.success) {
+          return {
+            error: true,
+            message: result.error || 'Failed to analyze image',
+            suggestion: 'Check if the image ID is correct and try again.'
+          }
+        }
+
+        return {
+          success: true,
+          imageId,
+          response: result.response
+        }
+      } catch (error) {
+        return {
+          error: true,
+          message: error instanceof Error ? error.message : 'Failed to query image',
+          suggestion: 'The vision model may be unavailable. Try again.'
         }
       }
     }
@@ -335,12 +444,23 @@ Examples of BLOCKED commands (will be rejected):
             suggestion: 'Check if the URL is valid and try again'
           }
         }
+
+        // Save screenshot to image registry
+        let imageRef: { imageId: number; hint: string } | undefined
+        if (result.screenshot) {
+          const ref = await saveScreenshotToRegistry(result.screenshot, result.url)
+          if (ref) {
+            imageRef = ref
+          }
+        }
+
         return {
           success: true,
           url: result.url,
           title: result.title,
           message: `Navigated to ${result.title || result.url}`,
-          screenshot: result.screenshot
+          ...(imageRef && { imageRef, imageNote: `[Image #${imageRef.imageId}: ${imageRef.hint}. Use queryImage(${imageRef.imageId}, "your question") to analyze.]` }),
+          screenshot: result.screenshot // Keep for UI display
         }
       } catch (error) {
         return {
@@ -367,12 +487,23 @@ Examples of BLOCKED commands (will be rejected):
             suggestion: selector ? 'The selector may not exist on this page. Try a different one.' : 'Navigate to a page first.'
           }
         }
+
+        // Save screenshot to image registry
+        let imageRef: { imageId: number; hint: string } | undefined
+        if (result.screenshot) {
+          const ref = await saveScreenshotToRegistry(result.screenshot, result.url)
+          if (ref) {
+            imageRef = ref
+          }
+        }
+
         return {
           success: true,
           url: result.url,
           title: result.title,
           content: result.content,
-          screenshot: result.screenshot
+          ...(imageRef && { imageRef, imageNote: `[Image #${imageRef.imageId}: ${imageRef.hint}. Use queryImage(${imageRef.imageId}, "your question") to analyze.]` }),
+          screenshot: result.screenshot // Keep for UI display
         }
       } catch (error) {
         return {
@@ -399,12 +530,23 @@ Examples of BLOCKED commands (will be rejected):
             suggestion: 'The element may not exist or may not be clickable. Try a different selector.'
           }
         }
+
+        // Save screenshot to image registry
+        let imageRef: { imageId: number; hint: string } | undefined
+        if (result.screenshot) {
+          const ref = await saveScreenshotToRegistry(result.screenshot, result.url)
+          if (ref) {
+            imageRef = ref
+          }
+        }
+
         return {
           success: true,
           url: result.url,
           title: result.title,
           message: `Clicked on "${selector}"`,
-          screenshot: result.screenshot
+          ...(imageRef && { imageRef, imageNote: `[Image #${imageRef.imageId}: ${imageRef.hint}. Use queryImage(${imageRef.imageId}, "your question") to analyze.]` }),
+          screenshot: result.screenshot // Keep for UI display
         }
       } catch (error) {
         return {
@@ -432,10 +574,21 @@ Examples of BLOCKED commands (will be rejected):
             suggestion: 'The input field may not exist. Try a different selector.'
           }
         }
+
+        // Save screenshot to image registry
+        let imageRef: { imageId: number; hint: string } | undefined
+        if (result.screenshot) {
+          const ref = await saveScreenshotToRegistry(result.screenshot, result.url)
+          if (ref) {
+            imageRef = ref
+          }
+        }
+
         return {
           success: true,
           message: `Typed "${text}" into ${selector}`,
-          screenshot: result.screenshot
+          ...(imageRef && { imageRef, imageNote: `[Image #${imageRef.imageId}: ${imageRef.hint}. Use queryImage(${imageRef.imageId}, "your question") to analyze.]` }),
+          screenshot: result.screenshot // Keep for UI display
         }
       } catch (error) {
         return {
@@ -461,11 +614,22 @@ Examples of BLOCKED commands (will be rejected):
             message: result.message || 'Key press failed'
           }
         }
+
+        // Save screenshot to image registry
+        let imageRef: { imageId: number; hint: string } | undefined
+        if (result.screenshot) {
+          const ref = await saveScreenshotToRegistry(result.screenshot, result.url)
+          if (ref) {
+            imageRef = ref
+          }
+        }
+
         return {
           success: true,
           url: result.url,
           message: `Pressed ${key}`,
-          screenshot: result.screenshot
+          ...(imageRef && { imageRef, imageNote: `[Image #${imageRef.imageId}: ${imageRef.hint}. Use queryImage(${imageRef.imageId}, "your question") to analyze.]` }),
+          screenshot: result.screenshot // Keep for UI display
         }
       } catch (error) {
         return {
@@ -517,10 +681,21 @@ Examples of BLOCKED commands (will be rejected):
             message: result.message || 'Scroll failed'
           }
         }
+
+        // Save screenshot to image registry
+        let imageRef: { imageId: number; hint: string } | undefined
+        if (result.screenshot) {
+          const ref = await saveScreenshotToRegistry(result.screenshot, result.url)
+          if (ref) {
+            imageRef = ref
+          }
+        }
+
         return {
           success: true,
           message: `Scrolled ${direction}`,
-          screenshot: result.screenshot
+          ...(imageRef && { imageRef, imageNote: `[Image #${imageRef.imageId}: ${imageRef.hint}. Use queryImage(${imageRef.imageId}, "your question") to analyze.]` }),
+          screenshot: result.screenshot // Keep for UI display
         }
       } catch (error) {
         return {
@@ -532,7 +707,7 @@ Examples of BLOCKED commands (will be rejected):
   }),
 
   browserScreenshot: tool({
-    description: 'Take a screenshot of the current page. Returns a base64-encoded image.',
+    description: 'Take a screenshot of the current page. The screenshot is saved to the image registry.',
     parameters: z.object({}),
     execute: async () => {
       try {
@@ -544,12 +719,23 @@ Examples of BLOCKED commands (will be rejected):
             suggestion: 'Navigate to a page first'
           }
         }
+
+        // Save screenshot to image registry
+        let imageRef: { imageId: number; hint: string } | undefined
+        if (result.image) {
+          const ref = await saveScreenshotToRegistry(result.image, result.url)
+          if (ref) {
+            imageRef = ref
+          }
+        }
+
         return {
           success: true,
           url: result.url,
           title: result.title,
-          image: result.image,
-          message: 'Screenshot captured'
+          message: 'Screenshot captured',
+          ...(imageRef && { imageRef, imageNote: `[Image #${imageRef.imageId}: ${imageRef.hint}. Use queryImage(${imageRef.imageId}, "your question") to analyze.]` }),
+          image: result.image // Keep for UI display
         }
       } catch (error) {
         return {
