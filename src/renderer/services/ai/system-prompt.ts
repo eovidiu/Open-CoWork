@@ -168,6 +168,26 @@ You can control a real browser with the user's existing logins and cookies! This
 3. Use text content for clicking when CSS selectors are unclear: \`browserClick("Submit")\`
 4. The user's browser selection determines which logins are available
 
+### Image Analysis
+
+Images (screenshots and user uploads) are stored in a registry with unique IDs.
+You'll see references like \`[Image #N: description]\` instead of the actual image data.
+
+- **queryImage(imageId, prompt)**: Ask questions about an image in the registry
+  - \`imageId\`: The number from the \`[Image #N]\` reference
+  - \`prompt\`: Your question about the image
+  - Examples:
+    - \`queryImage(1, "What text is visible on the page?")\`
+    - \`queryImage(2, "Is there a submit button?")\`
+    - \`queryImage(3, "Describe the main content")\`
+    - \`queryImage(1, "What error message is shown?")\`
+
+**When to use queryImage:**
+- Browser tools automatically capture screenshots stored as \`[Image #N]\` references
+- User uploads are also stored with unique IDs
+- You can query the same image multiple times with different questions
+- Use specific questions to get relevant details (e.g., "What's the error message?" instead of "Describe everything")
+
 ## How to Work Effectively
 
 ### Step 1: Explore First

@@ -191,33 +191,44 @@ export function useChat() {
         // Start timing for latency tracking
         const startTime = Date.now()
 
-        // Build history, converting the last message to multipart if it has images
+        // Build history - images are saved to registry and referenced by text
+        const imageReferences: string[] = []
+
+        // Process image attachments - save to registry
+        if (attachments?.some((a) => a.type === 'image')) {
+          for (const attachment of attachments.filter((a) => a.type === 'image')) {
+            try {
+              const imageId = await window.api.saveImage(
+                conversationId,
+                attachment.data,
+                attachment.mimeType,
+                'upload',
+                { filename: attachment.name }
+              )
+              imageReferences.push(
+                `[Image #${imageId}: ${attachment.name}. Use queryImage(${imageId}, "your question") to analyze.]`
+              )
+              console.log(`[ImageRegistry] Saved user upload as image #${imageId}`)
+            } catch (err) {
+              console.error('[ImageRegistry] Failed to save user upload:', err)
+              imageReferences.push(`[Attached: ${attachment.name} (failed to save to registry)]`)
+            }
+          }
+        }
+
+        // Build history with text references instead of raw image data
         const history = dbMessages.map((m, index) => {
-          // For the last user message with attachments, create multipart content
+          // For the last user message with image attachments, include text references
           if (
             index === dbMessages.length - 1 &&
             m.role === 'user' &&
-            attachments?.some((a) => a.type === 'image')
+            imageReferences.length > 0
           ) {
-            const parts: Array<{ type: 'text'; text: string } | { type: 'image'; image: string }> =
-              []
-
-            // Add images first
-            for (const attachment of attachments.filter((a) => a.type === 'image')) {
-              parts.push({
-                type: 'image',
-                image: attachment.data
-              })
-            }
-
-            // Add text content
-            if (content) {
-              parts.push({ type: 'text', text: content })
-            }
-
+            // Combine image references with the user's text content
+            const combinedContent = imageReferences.join('\n') + (content ? '\n\n' + content : '')
             return {
               role: m.role as 'user' | 'assistant' | 'system',
-              content: parts
+              content: combinedContent
             }
           }
 
@@ -254,24 +265,16 @@ export function useChat() {
             // Keep only the last N messages that weren't summarized
             const keptDbMessages = dbMessages.slice(-keptMessages.length)
             effectiveHistory = keptDbMessages.map((m, index) => {
-              // Handle last message with images as before
+              // Handle last message with image references (already saved to registry)
               if (
                 index === keptDbMessages.length - 1 &&
                 m.role === 'user' &&
-                attachments?.some((a) => a.type === 'image')
+                imageReferences.length > 0
               ) {
-                const parts: Array<
-                  { type: 'text'; text: string } | { type: 'image'; image: string }
-                > = []
-                for (const attachment of attachments.filter((a) => a.type === 'image')) {
-                  parts.push({ type: 'image', image: attachment.data })
-                }
-                if (content) {
-                  parts.push({ type: 'text', text: content })
-                }
+                const combinedContent = imageReferences.join('\n') + (content ? '\n\n' + content : '')
                 return {
                   role: m.role as 'user' | 'assistant' | 'system',
-                  content: parts
+                  content: combinedContent
                 }
               }
               return {
