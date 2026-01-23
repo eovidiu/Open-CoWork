@@ -1,11 +1,10 @@
-import { useRef, useEffect, useState, useCallback } from 'react'
+import { useRef, useEffect, useState, useCallback, useMemo, memo } from 'react'
 import {
   Loader2,
   ChevronDown,
   ChevronRight,
   Wrench,
   Paperclip,
-  X,
   FileText,
   FolderSearch,
   Terminal,
@@ -15,32 +14,22 @@ import {
   RotateCcw,
   GitFork,
   Copy,
-  Check,
-  Square
+  Check
 } from 'lucide-react'
 import logoImage from '../../assets/logo.png'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { ScrollArea } from '../ui/scroll-area'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { Dialog, DialogContent } from '../ui/dialog'
-import { ModelPicker } from './ModelPicker'
+import { ChatInput, type ChatInputHandle, type Attachment } from './ChatInput'
 import { QuestionSlider } from './QuestionSlider'
 import { useUIStore, modelSupportsSearch, DEFAULT_MODELS } from '../../stores/uiStore'
 import { useAttachmentStore, hashKey } from '../../stores/attachmentStore'
 import { useQuestionStore } from '../../stores/questionStore'
-import { useTodoStore } from '../../stores/todoStore'
 import { useConversation, useConversations } from '../../hooks/useConversations'
 import { useChat } from '../../hooks/useChat'
 import { generateConversationTitle } from '../../services/ai/openrouter'
 import { cn } from '../../lib/utils'
-
-interface Attachment {
-  id: string
-  type: 'image' | 'file'
-  name: string
-  data: string // base64 data URL
-  mimeType: string
-}
 
 interface ChatAreaProps {
   className?: string
@@ -60,20 +49,18 @@ export function ChatArea({ className }: ChatAreaProps) {
   const { sendMessage, stopGeneration, isLoading, streamingMessage, error } = useChat()
   const { getAttachments } = useAttachmentStore()
   const { activeQuestionSet } = useQuestionStore()
-  const { todos } = useTodoStore()
-  const [input, setInput] = useState('')
-  const [attachments, setAttachments] = useState<Attachment[]>([])
   const [isDragging, setIsDragging] = useState(false)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const dragCounterRef = useRef(0)
+  const listRef = useRef<HTMLDivElement>(null)
+  const isNearBottomRef = useRef(true)
+  const inputRef = useRef<ChatInputHandle>(null)
+  const scrollFrameRef = useRef<number | null>(null)
 
   // Check if current model supports search
   const currentModelSupportsSearch = modelSupportsSearch(selectedModel)
-  const allModels = [...DEFAULT_MODELS, ...customModels]
+  const allModels = useMemo(() => [...DEFAULT_MODELS, ...customModels], [customModels])
 
   const hasActiveQuestion = !!activeQuestionSet && !activeQuestionSet.submitted
-  const [isStopHovered, setIsStopHovered] = useState(false)
 
   // Handle question submission - send answers back to the chat
   const handleQuestionSubmit = async (
@@ -91,119 +78,6 @@ export function ChatArea({ className }: ChatAreaProps) {
       await sendMessage(content, activeConversationId, selectedModel)
     }
   }
-
-  // Convert file to base64 data URL
-  // Compress and resize image to reduce API payload size
-  const compressImage = useCallback(
-    (file: File, maxSize: number = 1024, quality: number = 0.8): Promise<string> => {
-      return new Promise((resolve, reject) => {
-        const img = new Image()
-        const canvas = document.createElement('canvas')
-        const ctx = canvas.getContext('2d')
-
-        img.onload = () => {
-          // Calculate new dimensions
-          let { width, height } = img
-          if (width > maxSize || height > maxSize) {
-            if (width > height) {
-              height = Math.round((height * maxSize) / width)
-              width = maxSize
-            } else {
-              width = Math.round((width * maxSize) / height)
-              height = maxSize
-            }
-          }
-
-          canvas.width = width
-          canvas.height = height
-          ctx?.drawImage(img, 0, 0, width, height)
-
-          // Convert to JPEG for better compression (unless it's a PNG with transparency)
-          const mimeType = file.type === 'image/png' ? 'image/png' : 'image/jpeg'
-          const dataUrl = canvas.toDataURL(mimeType, quality)
-
-          console.log(
-            `[Image] Compressed: ${img.width}x${img.height} → ${width}x${height}, ` +
-              `${Math.round(file.size / 1024)}KB → ~${Math.round((dataUrl.length * 0.75) / 1024)}KB`
-          )
-
-          resolve(dataUrl)
-        }
-
-        img.onerror = reject
-
-        // Load image from file
-        const reader = new FileReader()
-        reader.onload = () => {
-          img.src = reader.result as string
-        }
-        reader.onerror = reject
-        reader.readAsDataURL(file)
-      })
-    },
-    []
-  )
-
-  // Convert file to base64 data URL (with compression for images)
-  const fileToDataUrl = useCallback(
-    async (file: File): Promise<string> => {
-      // Compress images to reduce API payload
-      if (file.type.startsWith('image/')) {
-        return compressImage(file)
-      }
-
-      // For non-images, just read as data URL
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onload = () => resolve(reader.result as string)
-        reader.onerror = reject
-        reader.readAsDataURL(file)
-      })
-    },
-    [compressImage]
-  )
-
-  // Handle file selection
-  const handleFileSelect = useCallback(async (files: FileList | null) => {
-    if (!files) return
-
-    const newAttachments: Attachment[] = []
-    for (const file of Array.from(files)) {
-      const data = await fileToDataUrl(file)
-      const isImage = file.type.startsWith('image/')
-      newAttachments.push({
-        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        type: isImage ? 'image' : 'file',
-        name: file.name,
-        data,
-        mimeType: file.type
-      })
-    }
-    setAttachments((prev) => [...prev, ...newAttachments])
-  }, [fileToDataUrl])
-
-  // Handle paste event for images
-  const handlePaste = useCallback(async (e: React.ClipboardEvent) => {
-    const items = e.clipboardData?.items
-    if (!items) return
-
-    for (const item of Array.from(items)) {
-      if (item.type.startsWith('image/')) {
-        e.preventDefault()
-        const file = item.getAsFile()
-        if (file) {
-          const data = await fileToDataUrl(file)
-          setAttachments((prev) => [...prev, {
-            id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-            type: 'image',
-            name: `pasted-image-${Date.now()}.png`,
-            data,
-            mimeType: file.type
-          }])
-        }
-      }
-    }
-  }, [fileToDataUrl])
 
   // Handle drag-and-drop events
   const handleDragEnter = useCallback((e: React.DragEvent) => {
@@ -237,24 +111,11 @@ export function ChatArea({ className }: ChatAreaProps) {
 
     const files = e.dataTransfer?.files
     if (files && files.length > 0) {
-      await handleFileSelect(files)
+      await inputRef.current?.addFiles(files)
     }
-  }, [handleFileSelect])
-
-  // Remove attachment
-  const removeAttachment = useCallback((id: string) => {
-    setAttachments((prev) => prev.filter((a) => a.id !== id))
   }, [])
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if ((!input.trim() && attachments.length === 0) || isLoading) return
-
-    const content = input.trim()
-    const currentAttachments = [...attachments]
-    setInput('')
-    setAttachments([])
-
+  const handleSubmit = async (content: string, currentAttachments: Attachment[]) => {
     // Create conversation if needed
     let convId = activeConversationId
     if (!convId) {
@@ -293,36 +154,22 @@ export function ChatArea({ className }: ChatAreaProps) {
       modelToUse = `${selectedModel}:online`
     }
 
-    // Send message with attachments
     await sendMessage(content, convId, modelToUse, currentAttachments)
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSubmit(e)
-    }
-  }
-
-  // Auto-resize textarea
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto'
-      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 200) + 'px'
-    }
-  }, [input])
-
   // Build all messages with attachments from session store
-  const messagesWithAttachments = messages.map((msg) => {
-    if (msg.role === 'user' && activeConversationId) {
-      const key = hashKey(activeConversationId, msg.content)
-      const storedAttachments = getAttachments(key)
-      if (storedAttachments.length > 0) {
-        return { ...msg, attachments: storedAttachments }
+  const messagesWithAttachments = useMemo(() => {
+    return messages.map((msg) => {
+      if (msg.role === 'user' && activeConversationId) {
+        const key = hashKey(activeConversationId, msg.content)
+        const storedAttachments = getAttachments(key)
+        if (storedAttachments.length > 0) {
+          return { ...msg, attachments: storedAttachments }
+        }
       }
-    }
-    return msg
-  })
+      return msg
+    })
+  }, [messages, activeConversationId, getAttachments])
 
   // Combine with streaming message (cast to common type)
   const allMessages: Array<{
@@ -338,11 +185,74 @@ export function ChatArea({ className }: ChatAreaProps) {
       output?: string | null
       status: string
     }>
-  }> = [...messagesWithAttachments]
+  }> = useMemo(() => {
+    const combined = [...messagesWithAttachments]
+    if (streamingMessage) {
+      combined.push(streamingMessage)
+    }
+    return combined
+  }, [messagesWithAttachments, streamingMessage])
 
-  if (streamingMessage) {
-    allMessages.push(streamingMessage)
-  }
+  const rowVirtualizer = useVirtualizer({
+    count: allMessages.length,
+    getScrollElement: () => listRef.current,
+    estimateSize: () => 200,
+    overscan: 6
+  })
+
+  // Memoized callback for redo action
+  const handleRedo = useCallback(() => {
+    const userMessages = allMessages.filter((m) => m.role === 'user')
+    const lastUserMsg = userMessages[userMessages.length - 1]
+    if (lastUserMsg && activeConversationId) {
+      let modelToUse = selectedModel
+      if (searchEnabled && currentModelSupportsSearch) {
+        modelToUse = `${selectedModel}:online`
+      }
+      sendMessage(lastUserMsg.content, activeConversationId, modelToUse)
+    }
+  }, [allMessages, activeConversationId, selectedModel, searchEnabled, currentModelSupportsSearch, sendMessage])
+
+  // Memoized callback for fork action
+  const handleFork = useCallback((modelId: string) => {
+    const userMessages = allMessages.filter((m) => m.role === 'user')
+    const lastUserMsg = userMessages[userMessages.length - 1]
+    if (lastUserMsg && activeConversationId) {
+      sendMessage(lastUserMsg.content, activeConversationId, modelId)
+    }
+  }, [allMessages, activeConversationId, sendMessage])
+
+  // Find the last assistant message index for enabling redo/fork
+  const lastAssistantIndex = useMemo(() => {
+    for (let i = allMessages.length - 1; i >= 0; i--) {
+      if (allMessages[i].role === 'assistant') return i
+    }
+    return -1
+  }, [allMessages])
+
+  // Throttled auto-scroll during streaming using requestAnimationFrame
+  useEffect(() => {
+    if (!listRef.current) return
+    if (!isNearBottomRef.current) return
+    if (allMessages.length === 0) return
+
+    // Cancel any pending scroll frame
+    if (scrollFrameRef.current !== null) {
+      cancelAnimationFrame(scrollFrameRef.current)
+    }
+
+    // Schedule scroll on next animation frame to throttle updates
+    scrollFrameRef.current = requestAnimationFrame(() => {
+      rowVirtualizer.scrollToIndex(allMessages.length - 1, { align: 'end' })
+      scrollFrameRef.current = null
+    })
+
+    return () => {
+      if (scrollFrameRef.current !== null) {
+        cancelAnimationFrame(scrollFrameRef.current)
+      }
+    }
+  }, [allMessages.length, streamingMessage?.content, rowVirtualizer])
 
   return (
     <div
@@ -364,9 +274,17 @@ export function ChatArea({ className }: ChatAreaProps) {
       )}
 
       {/* Messages Area */}
-      <ScrollArea className="min-h-0 flex-1 p-4">
-        <div className="mx-auto max-w-3xl space-y-4">
-          {allMessages.length === 0 && !activeConversationId && (
+      <div
+        ref={listRef}
+        className="min-h-0 flex-1 overflow-y-auto p-4"
+        onScroll={(event) => {
+          const target = event.currentTarget
+          const distance = target.scrollHeight - target.scrollTop - target.clientHeight
+          isNearBottomRef.current = distance < 200
+        }}
+      >
+        <div className="mx-auto max-w-3xl">
+          {allMessages.length === 0 && !activeConversationId ? (
             <div className="flex flex-col items-center justify-center py-12">
               <div className="mb-8 text-center">
                 <div className="mb-4 flex justify-center">
@@ -381,7 +299,7 @@ export function ChatArea({ className }: ChatAreaProps) {
               <div className="grid w-full max-w-2xl gap-4 sm:grid-cols-2">
                 {/* Explore Files Card */}
                 <button
-                  onClick={() => setInput('What files do I have on my Desktop?')}
+                  onClick={() => inputRef.current?.setValue('What files do I have on my Desktop?')}
                   className="group rounded-xl border bg-card p-4 text-left transition-all hover:border-foreground/20 hover:shadow-md"
                 >
                   <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-foreground text-background">
@@ -395,7 +313,7 @@ export function ChatArea({ className }: ChatAreaProps) {
 
                 {/* Run Commands Card */}
                 <button
-                  onClick={() => setInput('What is my current directory and what files are here?')}
+                  onClick={() => inputRef.current?.setValue('What is my current directory and what files are here?')}
                   className="group rounded-xl border bg-card p-4 text-left transition-all hover:border-foreground/20 hover:shadow-md"
                 >
                   <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-foreground text-background">
@@ -409,7 +327,7 @@ export function ChatArea({ className }: ChatAreaProps) {
 
                 {/* Get Help Card */}
                 <button
-                  onClick={() => setInput('Help me understand this project structure')}
+                  onClick={() => inputRef.current?.setValue('Help me understand this project structure')}
                   className="group rounded-xl border bg-card p-4 text-left transition-all hover:border-foreground/20 hover:shadow-md"
                 >
                   <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-foreground text-background">
@@ -423,7 +341,7 @@ export function ChatArea({ className }: ChatAreaProps) {
 
                 {/* Search Content Card */}
                 <button
-                  onClick={() => setInput('Search my files for...')}
+                  onClick={() => inputRef.current?.setValue('Search my files for...')}
                   className="group rounded-xl border bg-card p-4 text-left transition-all hover:border-foreground/20 hover:shadow-md"
                 >
                   <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-foreground text-background">
@@ -453,57 +371,50 @@ export function ChatArea({ className }: ChatAreaProps) {
                 Join our Discord community
               </a>
             </div>
-          )}
-
-          {allMessages.map((msg, index) => (
-            <MessageBubble
-              key={msg.id || index}
-              message={msg}
-              allModels={allModels}
-              onRedo={
-                msg.role === 'assistant' && index === allMessages.length - 1
-                  ? () => {
-                      // Get the last user message to redo
-                      const userMessages = allMessages.filter((m) => m.role === 'user')
-                      const lastUserMsg = userMessages[userMessages.length - 1]
-                      if (lastUserMsg && activeConversationId) {
-                        // Determine model to use
-                        let modelToUse = selectedModel
-                        if (searchEnabled && currentModelSupportsSearch) {
-                          modelToUse = `${selectedModel}:online`
-                        }
-                        sendMessage(lastUserMsg.content, activeConversationId, modelToUse)
-                      }
-                    }
-                  : undefined
-              }
-              onFork={
-                msg.role === 'assistant' && index === allMessages.length - 1
-                  ? (modelId: string) => {
-                      const userMessages = allMessages.filter((m) => m.role === 'user')
-                      const lastUserMsg = userMessages[userMessages.length - 1]
-                      if (lastUserMsg && activeConversationId) {
-                        sendMessage(lastUserMsg.content, activeConversationId, modelId)
-                      }
-                    }
-                  : undefined
-              }
-              isLoading={isLoading}
-            />
-          ))}
-
-          {isLoading && !streamingMessage && (
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span>Thinking...</span>
+          ) : (
+            <div>
+              <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative' }}>
+                {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                  const msg = allMessages[virtualRow.index]
+                  return (
+                    <div
+                      key={msg.id || virtualRow.index}
+                      ref={rowVirtualizer.measureElement}
+                      data-index={virtualRow.index}
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        transform: `translateY(${virtualRow.start}px)`
+                      }}
+                    >
+                      <div className="pb-4">
+                        <MessageBubble
+                          message={msg}
+                          allModels={allModels}
+                          onRedo={virtualRow.index === lastAssistantIndex ? handleRedo : undefined}
+                          onFork={virtualRow.index === lastAssistantIndex ? handleFork : undefined}
+                          isLoading={isLoading}
+                        />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+              {isLoading && !streamingMessage && (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Thinking...</span>
+                </div>
+              )}
+              {error && (
+                <div className="rounded-md bg-destructive/10 p-4 text-destructive">{error}</div>
+              )}
             </div>
           )}
-
-          {error && (
-            <div className="rounded-md bg-destructive/10 p-4 text-destructive">{error}</div>
-          )}
         </div>
-      </ScrollArea>
+      </div>
 
       {/* Question Slider - shown when agent asks questions */}
       {hasActiveQuestion && (
@@ -512,145 +423,16 @@ export function ChatArea({ className }: ChatAreaProps) {
         </div>
       )}
 
-      {/* Input Area */}
-      <div className="bg-background p-4">
-        <form onSubmit={handleSubmit} className="mx-auto max-w-3xl">
-          {/* Hidden file input */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            accept="image/*,.pdf,.txt,.md,.json,.csv,.js,.jsx,.ts,.tsx,.py,.html,.css,.scss,.yaml,.yml,.xml,.sql,.sh,.bash,.zsh,.env,.gitignore,.toml,.rs,.go,.java,.c,.cpp,.h,.hpp,.swift,.kt,.rb,.php"
-            onChange={(e) => handleFileSelect(e.target.files)}
-            className="hidden"
-          />
-
-          {/* Unified Input Container */}
-          <div className="rounded-2xl border bg-card shadow-sm">
-            {/* Attachment Previews - inside container at top */}
-            {attachments.length > 0 && (
-              <div className="flex flex-wrap gap-2 border-b p-3">
-                {attachments.map((attachment) => (
-                  <div
-                    key={attachment.id}
-                    className="group relative flex items-center gap-2 rounded-lg border bg-muted/50 p-2"
-                  >
-                    {attachment.type === 'image' && attachment.data ? (
-                      <img
-                        src={attachment.data}
-                        alt={attachment.name}
-                        className="h-12 w-12 rounded object-cover"
-                      />
-                    ) : (
-                      <div className="flex h-12 w-12 items-center justify-center rounded bg-muted">
-                        <FileText className="h-5 w-5 text-muted-foreground" />
-                      </div>
-                    )}
-                    <span className="max-w-[80px] truncate text-xs">{attachment.name}</span>
-                    <button
-                      type="button"
-                      onClick={() => removeAttachment(attachment.id)}
-                      className="absolute -right-1.5 -top-1.5 rounded-full bg-destructive p-0.5 text-destructive-foreground opacity-0 transition-opacity group-hover:opacity-100"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Textarea */}
-            <div className="px-4 pt-3">
-              <textarea
-                ref={textareaRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                onPaste={handlePaste}
-                placeholder="How can I help you today?"
-                className="w-full resize-none bg-transparent text-base outline-none placeholder:text-muted-foreground"
-                disabled={isLoading}
-                rows={1}
-              />
-            </div>
-
-            {/* Bottom toolbar with model picker, search, and attachment */}
-            <div className="flex items-center justify-between px-3 pb-3 pt-2">
-              {/* Left side: Model picker */}
-              <div className="flex items-center gap-1">
-                <ModelPicker variant="minimal" />
-              </div>
-
-              {/* Right side: Search toggle and Attachment */}
-              <div className="flex items-center gap-1">
-                {/* Search Toggle */}
-                <button
-                  type="button"
-                  onClick={toggleSearch}
-                  disabled={!currentModelSupportsSearch}
-                  className={cn(
-                    'flex h-8 w-8 items-center justify-center rounded-lg transition-all',
-                    searchEnabled && currentModelSupportsSearch
-                      ? 'bg-primary/15 text-primary'
-                      : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-                    !currentModelSupportsSearch && 'cursor-not-allowed opacity-40'
-                  )}
-                  title={
-                    currentModelSupportsSearch
-                      ? searchEnabled
-                        ? 'Web search enabled - click to disable'
-                        : 'Click to enable web search'
-                      : 'This model does not support web search'
-                  }
-                >
-                  <Globe className="h-4 w-4" />
-                </button>
-
-                {/* Attachment Button */}
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isLoading}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-all hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-                  title="Add attachment"
-                >
-                  <Paperclip className="h-4 w-4" />
-                </button>
-
-                {/* Loading indicator / Stop button */}
-                {isLoading && (
-                  <button
-                    type="button"
-                    onClick={() => stopGeneration(activeConversationId || undefined)}
-                    onMouseEnter={() => setIsStopHovered(true)}
-                    onMouseLeave={() => setIsStopHovered(false)}
-                    className={cn(
-                      'flex h-8 w-8 items-center justify-center rounded-lg transition-all',
-                      isStopHovered
-                        ? 'bg-destructive/15 text-destructive'
-                        : 'text-muted-foreground'
-                    )}
-                    title="Stop generating"
-                  >
-                    {isStopHovered ? (
-                      <Square className="h-4 w-4 fill-current" />
-                    ) : (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    )}
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Hint text */}
-          {!isLoading && (
-            <p className="mt-2 text-center text-xs text-muted-foreground">
-              Press Enter to send · Shift+Enter for new line
-            </p>
-          )}
-        </form>
-      </div>
+      <ChatInput
+        ref={inputRef}
+        isLoading={isLoading}
+        activeConversationId={activeConversationId}
+        onSubmit={handleSubmit}
+        onStop={stopGeneration}
+        searchEnabled={searchEnabled}
+        toggleSearch={toggleSearch}
+        currentModelSupportsSearch={currentModelSupportsSearch}
+      />
     </div>
   )
 }
@@ -687,7 +469,13 @@ interface MessageBubbleProps {
   isLoading?: boolean
 }
 
-function MessageBubble({ message, allModels, onRedo, onFork, isLoading }: MessageBubbleProps) {
+const MessageBubble = memo(function MessageBubble({
+  message,
+  allModels,
+  onRedo,
+  onFork,
+  isLoading
+}: MessageBubbleProps) {
   const [showThinking, setShowThinking] = useState(false)
   const [lightboxImage, setLightboxImage] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
@@ -866,7 +654,7 @@ function MessageBubble({ message, allModels, onRedo, onFork, isLoading }: Messag
       </Dialog>
     </div>
   )
-}
+})
 
 interface ToolCallBlockProps {
   toolCall: {
