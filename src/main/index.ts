@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, Menu, ipcMain } from 'electron'
+import { app, shell, BrowserWindow, Menu, ipcMain, session } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { initDatabase, closeDatabase } from './database'
@@ -14,7 +14,7 @@ function createWindow(): void {
     autoHideMenuBar: true,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false,
+      sandbox: true,
       contextIsolation: true,
       nodeIntegration: false
     },
@@ -27,9 +27,33 @@ function createWindow(): void {
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url)
+    try {
+      const url = new URL(details.url)
+      if (url.protocol === 'https:' || url.protocol === 'http:') {
+        shell.openExternal(details.url)
+      }
+    } catch {
+      // Invalid URL, ignore
+    }
     return { action: 'deny' }
   })
+
+  // Prevent navigation away from app origin
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    // Allow dev server URL in development
+    if (is.dev && process.env['ELECTRON_RENDERER_URL'] && url.startsWith(process.env['ELECTRON_RENDERER_URL'])) {
+      return
+    }
+    // Block all other navigation
+    event.preventDefault()
+  })
+
+  // Disable DevTools in production
+  if (!is.dev) {
+    mainWindow.webContents.on('devtools-opened', () => {
+      mainWindow.webContents.closeDevTools()
+    })
+  }
 
   // Context menu for copy/paste
   mainWindow.webContents.on('context-menu', (_event, params) => {
@@ -125,6 +149,11 @@ app.whenReady().then(async () => {
 
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
+  })
+
+  // Deny all permission requests by default
+  session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => {
+    callback(false)
   })
 
   // Initialize database
