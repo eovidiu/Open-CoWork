@@ -1,24 +1,16 @@
 import { ipcMain, dialog } from 'electron'
 import { readFile, writeFile, readdir, stat, access } from 'fs/promises'
 import { join, resolve } from 'path'
-import { exec } from 'child_process'
-import { promisify } from 'util'
+import { spawn } from 'child_process'
 import fg from 'fast-glob'
 
-const execAsync = promisify(exec)
-
-// Dangerous command patterns that should be blocked
-const BLOCKED_PATTERNS = [
-  /\brm\s+(-[a-zA-Z]*f|-[a-zA-Z]*r|--force|--recursive)/i,
-  /\brm\s+-rf\b/i,
-  /\brm\s+-fr\b/i,
-  /\bsudo\s+rm\b/i,
-  /\bmkfs\b/i,
-  /\bdd\s+.*\bof=/i,
-  /\b:.*\(\).*\{.*:\|.*\}/i, // Fork bomb pattern
-  /\bchmod\s+(-[a-zA-Z]*)?\s*(000|777|a-rwx)/i,
-  /\bchown\s+.*\//i,
-  />\s*\/dev\/(sda|hda|null)/i
+// Allowlist of permitted executables for bash commands
+const ALLOWED_EXECUTABLES = [
+  'ls', 'cat', 'head', 'tail', 'wc', 'sort', 'uniq', 'find', 'grep', 'awk', 'sed',
+  'echo', 'pwd', 'whoami', 'date', 'which', 'file', 'diff', 'git', 'node', 'npm',
+  'npx', 'pnpm', 'python', 'python3', 'pip', 'pip3', 'curl', 'wget', 'tar', 'gzip',
+  'gunzip', 'zip', 'unzip', 'mkdir', 'cp', 'mv', 'touch', 'chmod', 'tee', 'xargs',
+  'env', 'sh', 'bash', 'zsh'
 ]
 
 export function registerFileSystemHandlers(): void {
@@ -187,46 +179,82 @@ export function registerFileSystemHandlers(): void {
     return results
   })
 
-  // Bash - execute shell commands (with safety checks)
+  // Bash - execute shell commands (with allowlist validation)
   ipcMain.handle('fs:bash', async (_, command: string, options?: { cwd?: string; timeout?: number }) => {
-    // Check for dangerous patterns
-    for (const pattern of BLOCKED_PATTERNS) {
-      if (pattern.test(command)) {
-        throw new Error(
-          `This command has been blocked for safety. The pattern "${pattern.toString()}" is not allowed. ` +
-          'Destructive commands like rm -rf, sudo rm, mkfs, dd, etc. are not permitted.'
-        )
-      }
-    }
-
     const cwd = options?.cwd || process.cwd()
     const timeout = options?.timeout || 30000 // 30 second default timeout
 
+    // Validate CWD exists and is a directory
     try {
-      const { stdout, stderr } = await execAsync(command, {
+      const cwdStat = await stat(cwd)
+      if (!cwdStat.isDirectory()) {
+        throw new Error(`CWD is not a directory: ${cwd}`)
+      }
+    } catch (error) {
+      throw new Error(`Invalid CWD: ${cwd} - ${error instanceof Error ? error.message : 'does not exist'}`)
+    }
+
+    // Extract first command from the command string (handle pipes and redirects)
+    const firstCommand = command.trim().split(/[|;&]/, 1)[0].trim()
+    const programMatch = firstCommand.match(/^\s*(\S+)/)
+    if (!programMatch) {
+      throw new Error('Invalid command: empty or malformed')
+    }
+
+    // Extract the program name (handle full paths like /usr/bin/ls)
+    const programPath = programMatch[1]
+    const programName = programPath.split('/').pop() || programPath
+
+    // Validate against allowlist
+    if (!ALLOWED_EXECUTABLES.includes(programName)) {
+      throw new Error(
+        `Command blocked for security: "${programName}" is not in the allowlist. ` +
+        `Allowed executables: ${ALLOWED_EXECUTABLES.join(', ')}`
+      )
+    }
+
+    // Use spawn with shell mode (sh -c) after validation
+    // This allows pipes/redirects while still validating the primary command
+    return new Promise((resolve, reject) => {
+      const child = spawn('sh', ['-c', command], {
         cwd,
-        timeout,
-        maxBuffer: 10 * 1024 * 1024, // 10MB buffer
-        encoding: 'utf-8'
+        shell: false, // We're explicitly using sh, no need for additional shell
+        timeout
       })
 
-      return {
-        stdout: stdout || '',
-        stderr: stderr || '',
-        exitCode: 0
-      }
-    } catch (error: unknown) {
-      const err = error as { code?: string; killed?: boolean; stdout?: string; stderr?: string }
-      if (err.killed) {
-        throw new Error(`Command timed out after ${timeout / 1000} seconds`)
-      }
-      // Return stdout/stderr even on error
-      return {
-        stdout: err.stdout || '',
-        stderr: err.stderr || (error instanceof Error ? error.message : 'Command failed'),
-        exitCode: err.code || 1
-      }
-    }
+      let stdout = ''
+      let stderr = ''
+
+      child.stdout.on('data', (data) => {
+        stdout += data.toString()
+      })
+
+      child.stderr.on('data', (data) => {
+        stderr += data.toString()
+      })
+
+      child.on('error', (error) => {
+        reject(new Error(`Failed to execute command: ${error.message}`))
+      })
+
+      child.on('close', (code) => {
+        resolve({
+          stdout: stdout || '',
+          stderr: stderr || '',
+          exitCode: code || 0
+        })
+      })
+
+      // Handle timeout
+      const timeoutId = setTimeout(() => {
+        child.kill()
+        reject(new Error(`Command timed out after ${timeout / 1000} seconds`))
+      }, timeout)
+
+      child.on('exit', () => {
+        clearTimeout(timeoutId)
+      })
+    })
   })
 
   // Dialog handlers

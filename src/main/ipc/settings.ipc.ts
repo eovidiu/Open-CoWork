@@ -84,22 +84,4 @@ export function registerSettingsHandlers(): void {
   ipcMain.handle('app:getHomePath', async () => {
     return app.getPath('home')
   })
-
-  // Shell execution
-  ipcMain.handle('shell:execute', async (_, command: string, cwd?: string) => {
-    const { exec } = await import('child_process')
-    const { promisify } = await import('util')
-    const execAsync = promisify(exec)
-
-    const result = await execAsync(command, {
-      cwd: cwd || app.getPath('home'),
-      timeout: 30000,
-      maxBuffer: 1024 * 1024 * 10 // 10MB
-    })
-
-    return {
-      stdout: result.stdout,
-      stderr: result.stderr
-    }
-  })
 }
