@@ -1,5 +1,30 @@
 import posthog from 'posthog-js'
 
+/**
+ * Analytics Privacy Policy
+ *
+ * This module implements privacy-respecting telemetry with explicit opt-in.
+ *
+ * Data Collection Policy:
+ * - NO personal information (names, emails, file paths, message content)
+ * - NO conversation content or user messages
+ * - NO tool call arguments (only tool names and success/failure)
+ * - Aggregated metrics only: event counts, bucketed latencies, feature usage
+ *
+ * What IS collected (if opted in):
+ * - Feature usage events (which features are used, not what data they process)
+ * - Performance metrics (latency buckets, not raw values)
+ * - Model selection (which model, not what prompts)
+ * - Tool usage (tool name, duration bucket, success/failure only)
+ * - Session metadata (theme, skill count, platform)
+ *
+ * Privacy Controls:
+ * - Opt-in only (defaults to OFF)
+ * - Memory-only persistence (no persistent tracking IDs)
+ * - No autocapture, no session recording, no surveys
+ * - No external script loading
+ */
+
 // PostHog configuration
 // This is a write-only public key - safe to include in client code
 const POSTHOG_KEY = 'phc_iNm6Q6FDfO9xi29jmMNnXunX08HVpoY2kS626Irq6lc'
@@ -20,11 +45,13 @@ export async function initAnalytics(): Promise<void> {
     if (isOptedIn) {
       posthog.init(POSTHOG_KEY, {
         api_host: POSTHOG_HOST,
-        persistence: 'localStorage',
+        persistence: 'memory', // No persistent tracking IDs
         autocapture: false, // We'll track manually for privacy
         capture_pageview: false,
         capture_pageleave: false,
         disable_session_recording: true,
+        disable_surveys: true, // No surveys
+        disable_external_dependency_loading: true, // No external scripts
         loaded: () => {
           console.log('[Analytics] PostHog initialized')
         }
@@ -33,7 +60,8 @@ export async function initAnalytics(): Promise<void> {
 
     isInitialized = true
   } catch (error) {
-    console.warn('[Analytics] Failed to initialize:', error)
+    // Don't log raw error to avoid leaking sensitive data
+    console.warn('[Analytics] Failed to initialize:', error instanceof Error ? error.message : 'Unknown error')
   }
 }
 
@@ -44,11 +72,13 @@ export function setAnalyticsOptIn(optIn: boolean): void {
   if (optIn && !posthog.__loaded) {
     posthog.init(POSTHOG_KEY, {
       api_host: POSTHOG_HOST,
-      persistence: 'localStorage',
+      persistence: 'memory', // No persistent tracking IDs
       autocapture: false,
       capture_pageview: false,
       capture_pageleave: false,
-      disable_session_recording: true
+      disable_session_recording: true,
+      disable_surveys: true, // No surveys
+      disable_external_dependency_loading: true // No external scripts
     })
   } else if (!optIn && posthog.__loaded) {
     posthog.opt_out_capturing()
@@ -68,7 +98,8 @@ function track(event: string, properties?: Record<string, unknown>): void {
       platform: window.api.getPlatform()
     })
   } catch (error) {
-    console.warn('[Analytics] Failed to track event:', error)
+    // Don't log raw error to avoid leaking sensitive data
+    console.warn('[Analytics] Failed to track event:', error instanceof Error ? error.message : 'Unknown error')
   }
 }
 
@@ -281,6 +312,7 @@ export function identifyUser(properties: {
   try {
     posthog.identify(undefined, properties)
   } catch (error) {
-    console.warn('[Analytics] Failed to identify:', error)
+    // Don't log raw error to avoid leaking sensitive data
+    console.warn('[Analytics] Failed to identify:', error instanceof Error ? error.message : 'Unknown error')
   }
 }
