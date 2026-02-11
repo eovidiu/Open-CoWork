@@ -1,8 +1,55 @@
 import { ipcMain, dialog } from 'electron'
-import { readFile, writeFile, readdir, stat, access } from 'fs/promises'
+import { readFile, writeFile, readdir, stat, access, realpath } from 'fs/promises'
 import { join, resolve } from 'path'
 import { spawn } from 'child_process'
 import fg from 'fast-glob'
+
+// Sensitive paths that should never be accessed
+const SENSITIVE_PATHS = [
+  '/.ssh/', '/.aws/', '/.gnupg/', '/.config/gcloud/',
+  '/etc/shadow', '/etc/passwd', '/etc/sudoers',
+  '/.keychain/', '/.credential', '/.netrc',
+  '/dev.db', '/.prisma/',
+]
+
+// Max file sizes
+const MAX_READ_SIZE = 50 * 1024 * 1024  // 50MB
+const MAX_WRITE_SIZE = 50 * 1024 * 1024  // 50MB
+const MAX_GLOB_RESULTS = 1000
+const MAX_GREP_RESULTS = 500
+
+// Validate and normalize a file path
+async function validatePath(inputPath: string): Promise<string> {
+  // Normalize the path
+  const normalized = resolve(inputPath)
+
+  // Resolve symlinks to get the real path
+  let realPath: string
+  try {
+    realPath = await realpath(normalized)
+  } catch {
+    // File may not exist yet (for writes), use normalized path
+    realPath = normalized
+  }
+
+  // Check against sensitive paths
+  const lowerPath = realPath.toLowerCase()
+  for (const sensitive of SENSITIVE_PATHS) {
+    if (lowerPath.includes(sensitive.toLowerCase())) {
+      throw new Error(`Access denied: path matches restricted pattern`)
+    }
+  }
+
+  return realPath
+}
+
+// Check file size before reading
+async function checkFileSize(filePath: string, maxSize: number): Promise<void> {
+  const fileStat = await stat(filePath)
+  if (fileStat.size > maxSize) {
+    throw new Error(`File too large: ${(fileStat.size / 1024 / 1024).toFixed(1)}MB exceeds limit of ${(maxSize / 1024 / 1024).toFixed(0)}MB`)
+  }
+}
 
 // Allowlist of permitted executables for bash commands
 const ALLOWED_EXECUTABLES = [
@@ -15,17 +62,21 @@ const ALLOWED_EXECUTABLES = [
 
 export function registerFileSystemHandlers(): void {
   ipcMain.handle('fs:readFile', async (_, path: string) => {
-    const content = await readFile(path, 'utf-8')
+    const validPath = await validatePath(path)
+    await checkFileSize(validPath, MAX_READ_SIZE)
+    const content = await readFile(validPath, 'utf-8')
     return content
   })
 
   // Read file as base64 (for binary files like images)
   ipcMain.handle('fs:readFileBase64', async (_, path: string) => {
-    const buffer = await readFile(path)
+    const validPath = await validatePath(path)
+    await checkFileSize(validPath, MAX_READ_SIZE)
+    const buffer = await readFile(validPath)
     const base64 = buffer.toString('base64')
 
     // Determine MIME type from extension
-    const ext = path.split('.').pop()?.toLowerCase() || ''
+    const ext = validPath.split('.').pop()?.toLowerCase() || ''
     const mimeTypes: Record<string, string> = {
       png: 'image/png',
       jpg: 'image/jpeg',
@@ -47,14 +98,19 @@ export function registerFileSystemHandlers(): void {
   })
 
   ipcMain.handle('fs:writeFile', async (_, path: string, content: string) => {
-    await writeFile(path, content, 'utf-8')
+    const validPath = await validatePath(path)
+    if (content.length > MAX_WRITE_SIZE) {
+      throw new Error(`Content too large: exceeds ${(MAX_WRITE_SIZE / 1024 / 1024).toFixed(0)}MB write limit`)
+    }
+    await writeFile(validPath, content, 'utf-8')
   })
 
   ipcMain.handle('fs:readDirectory', async (_, path: string) => {
-    const entries = await readdir(path, { withFileTypes: true })
+    const validPath = await validatePath(path)
+    const entries = await readdir(validPath, { withFileTypes: true })
     const results = await Promise.all(
       entries.map(async (entry) => {
-        const fullPath = join(path, entry.name)
+        const fullPath = join(validPath, entry.name)
         const stats = await stat(fullPath).catch(() => null)
         return {
           name: entry.name,
@@ -80,27 +136,37 @@ export function registerFileSystemHandlers(): void {
   // Glob - find files matching a pattern
   ipcMain.handle('fs:glob', async (_, pattern: string, cwd?: string) => {
     const basePath = cwd || process.cwd()
+
+    // Block patterns that start at filesystem root
+    if (pattern.startsWith('/') || pattern.startsWith('/*')) {
+      throw new Error('Glob patterns starting at filesystem root are not allowed')
+    }
+
     const matches = await fg(pattern, {
       cwd: basePath,
       onlyFiles: false,
-      dot: false, // Skip hidden files by default
+      dot: false,
       absolute: true,
       stats: true,
-      suppressErrors: true
+      suppressErrors: true,
     })
 
-    return matches.map((entry) => ({
+    // Enforce result limit
+    const limited = matches.slice(0, MAX_GLOB_RESULTS)
+
+    return limited.map((entry) => ({
       name: entry.name,
       path: entry.path,
       isDirectory: entry.stats?.isDirectory() || false,
       size: entry.stats?.size,
-      modifiedAt: entry.stats?.mtime
+      modifiedAt: entry.stats?.mtime,
+      ...(matches.length > MAX_GLOB_RESULTS ? { truncated: true, totalMatches: matches.length } : {})
     }))
   })
 
   // Grep - search file contents for a pattern
   ipcMain.handle('fs:grep', async (_, pattern: string, searchPath: string, options?: { maxResults?: number }) => {
-    const maxResults = options?.maxResults || 100
+    const maxResults = Math.min(options?.maxResults || 100, MAX_GREP_RESULTS)
     const results: Array<{
       file: string
       line: number
@@ -110,6 +176,10 @@ export function registerFileSystemHandlers(): void {
 
     // Get all text files in the path
     const resolvedPath = resolve(searchPath)
+
+    // Validate the search path
+    await validatePath(resolvedPath)
+
     const pathStat = await stat(resolvedPath).catch(() => null)
 
     if (!pathStat) {
