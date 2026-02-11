@@ -5,6 +5,7 @@ import {
   type SecureStorageBackend
 } from '../services/settings.service'
 import type { UpdateSettingsInput } from '../../shared/types'
+import { secureHandler } from './ipc-security'
 
 // Electron-specific secure storage implementation
 function createElectronSecureStorage(): SecureStorageBackend {
@@ -55,33 +56,33 @@ export function registerSettingsHandlers(): void {
   const settingsService = createSettingsService(prisma, secureStorage)
 
   // Settings from database
-  ipcMain.handle('settings:get', async () => {
+  ipcMain.handle('settings:get', secureHandler(async () => {
     return settingsService.get()
-  })
+  }))
 
-  ipcMain.handle('settings:update', async (_, data: UpdateSettingsInput) => {
+  ipcMain.handle('settings:update', secureHandler(async (_, data: UpdateSettingsInput) => {
     return settingsService.update(data)
-  })
+  }))
 
   // Secure storage for API key
-  ipcMain.handle('settings:getApiKey', async () => {
+  ipcMain.handle('settings:getApiKey', secureHandler(async () => {
     return settingsService.getApiKey()
-  })
+  }))
 
-  ipcMain.handle('settings:setApiKey', async (_, key: string) => {
+  ipcMain.handle('settings:setApiKey', secureHandler(async (_, key: string) => {
     return settingsService.setApiKey(key)
-  })
+  }))
 
-  ipcMain.handle('settings:deleteApiKey', async () => {
+  ipcMain.handle('settings:deleteApiKey', secureHandler(async () => {
     return settingsService.deleteApiKey()
-  })
+  }))
 
   // App paths
-  ipcMain.handle('app:getPath', async () => {
+  ipcMain.handle('app:getPath', secureHandler(async () => {
     return app.getPath('userData')
-  })
+  }))
 
-  ipcMain.handle('app:getHomePath', async () => {
+  ipcMain.handle('app:getHomePath', secureHandler(async () => {
     return app.getPath('home')
-  })
+  }))
 }

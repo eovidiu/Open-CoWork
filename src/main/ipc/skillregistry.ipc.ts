@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron'
 import { createHash } from 'crypto'
+import { secureHandler, createRateLimiter } from './ipc-security'
 
 // Generate SHA-256 hash of skill content for integrity verification
 function hashContent(content: string): string {
@@ -52,10 +53,13 @@ interface RegistrySkill {
 }
 
 export function registerSkillRegistryHandlers(): void {
+  // Rate limiter for expensive operations
+  const expensiveLimiter = createRateLimiter(10, 60000) // 10 calls per minute
+
   // Search skills on skillregistry.io
   ipcMain.handle(
     'skillregistry:search',
-    async (_, query: string): Promise<RegistrySkill[]> => {
+    secureHandler(async (_, query: string): Promise<RegistrySkill[]> => {
       try {
         const url = query.trim()
           ? `https://skillregistry.io/api/skills?search=${encodeURIComponent(query)}`
@@ -78,13 +82,13 @@ export function registerSkillRegistryHandlers(): void {
         console.error('[SkillRegistry] Search error:', error)
         return []
       }
-    }
+    }, expensiveLimiter)
   )
 
   // Fetch skill content
   ipcMain.handle(
     'skillregistry:getContent',
-    async (_, skillId: string): Promise<{ content: string; hash: string } | null> => {
+    secureHandler(async (_, skillId: string): Promise<{ content: string; hash: string } | null> => {
       try {
         if (!isValidSkillId(skillId)) {
           console.error('[SkillRegistry] Invalid skill ID:', skillId)
@@ -113,11 +117,11 @@ export function registerSkillRegistryHandlers(): void {
         console.error('[SkillRegistry] Content fetch error:', error)
         return null
       }
-    }
+    }, expensiveLimiter)
   )
 
   // Verify skill content integrity
-  ipcMain.handle('skillregistry:verifyHash', async (_, content: string, expectedHash: string): Promise<boolean> => {
+  ipcMain.handle('skillregistry:verifyHash', secureHandler(async (_, content: string, expectedHash: string): Promise<boolean> => {
     return hashContent(content) === expectedHash
-  })
+  }))
 }

@@ -3,13 +3,14 @@ import { writeFile } from 'fs/promises'
 import { getDatabase } from '../database'
 import { createConversationService } from '../services/conversation.service'
 import { createExportService } from '../services/export.service'
+import { secureHandler } from './ipc-security'
 
 export function registerExportHandlers(): void {
   const prisma = getDatabase()
   const conversationService = createConversationService(prisma)
   const exportService = createExportService()
 
-  ipcMain.handle('export:markdown', async (_, conversationId: string) => {
+  ipcMain.handle('export:markdown', secureHandler(async (_, conversationId: string) => {
     // Get the conversation with messages
     const conversation = await conversationService.get(conversationId)
     if (!conversation) {
@@ -44,5 +45,5 @@ export function registerExportHandlers(): void {
     await writeFile(result.filePath, markdown, 'utf-8')
 
     return { success: true, filePath: result.filePath }
-  })
+  }))
 }

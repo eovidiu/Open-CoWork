@@ -3,8 +3,9 @@ import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { initDatabase, closeDatabase } from './database'
 import { registerIpcHandlers } from './ipc'
+import { setMainWindow } from './ipc/ipc-security'
 
-function createWindow(): void {
+function createWindow(): BrowserWindow {
   const mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -118,6 +119,8 @@ function createWindow(): void {
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
+
+  return mainWindow
 }
 
 app.whenReady().then(async () => {
@@ -133,7 +136,10 @@ app.whenReady().then(async () => {
   // Register IPC handlers
   registerIpcHandlers()
 
-  createWindow()
+  const mainWindow = createWindow()
+
+  // Set main window for IPC security validation
+  setMainWindow(mainWindow)
 
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
