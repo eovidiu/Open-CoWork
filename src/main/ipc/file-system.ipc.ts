@@ -9,7 +9,7 @@ const SENSITIVE_PATHS = [
   '/.ssh/', '/.aws/', '/.gnupg/', '/.config/gcloud/',
   '/etc/shadow', '/etc/passwd', '/etc/sudoers',
   '/.keychain/', '/.credential', '/.netrc',
-  '/dev.db', '/.prisma/',
+  '/dev.db', '/.prisma/', '/open-cowork.db',
 ]
 
 // Max file sizes

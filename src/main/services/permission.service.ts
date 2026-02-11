@@ -1,7 +1,8 @@
 import { PrismaClient } from '@prisma/client'
 
 function permissionKey(path: string, operation: string): string {
-  return `${path}:${operation}`
+  // Use URL-encoding to prevent key collisions when path or operation contains the delimiter
+  return `${encodeURIComponent(path)}::${encodeURIComponent(operation)}`
 }
 
 export function createPermissionService(prisma: PrismaClient) {
@@ -57,8 +58,14 @@ export function createPermissionService(prisma: PrismaClient) {
     list: async () => {
       const persisted = await prisma.permission.findMany()
       const session = Array.from(sessionPermissions.keys()).map((key) => {
-        const [path, operation] = key.split(':')
-        return { id: key, path, operation, scope: 'session', createdAt: new Date() }
+        const [encodedPath, encodedOperation] = key.split('::')
+        return {
+          id: key,
+          path: decodeURIComponent(encodedPath),
+          operation: decodeURIComponent(encodedOperation),
+          scope: 'session',
+          createdAt: new Date()
+        }
       })
       return [...persisted, ...session]
     },

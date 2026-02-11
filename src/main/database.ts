@@ -2,6 +2,7 @@ import { app } from 'electron'
 import { join } from 'path'
 import { PrismaClient } from '@prisma/client'
 import { existsSync, copyFileSync } from 'fs'
+import { chmod } from 'fs/promises'
 
 let prisma: PrismaClient | null = null
 
@@ -397,6 +398,14 @@ export async function initDatabase(): Promise<PrismaClient> {
     if (!existsSync(dbPath) && existsSync(templateDbPath)) {
       copyFileSync(templateDbPath, dbPath)
     }
+  }
+
+  // Set restrictive file permissions on the database (user read/write only)
+  // Note: For stronger protection, consider SQLCipher for encryption at rest
+  if (existsSync(dbPath)) {
+    await chmod(dbPath, 0o600).catch(() => {
+      // Ignore chmod errors on platforms that don't support it (e.g., Windows)
+    })
   }
 
   // Create Prisma client
