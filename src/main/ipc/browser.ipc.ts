@@ -215,7 +215,6 @@ async function ensureBrowser(preferredBrowserId?: string, headless: boolean = tr
   // Get the browser config
   const browserId = preferredBrowserId || 'chrome'
   const config = getBrowserConfig(browserId)
-  const appDataDir = join(app.getPath('userData'), 'browser-data', browserId)
 
   // Try to launch with the specified browser
   try {
