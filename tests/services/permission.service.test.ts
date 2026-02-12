@@ -198,7 +198,7 @@ describe('PermissionService', () => {
       await permissionService.grant('/test', 'read', 'session')
 
       const map = permissionService.getSessionPermissions()
-      expect(map.has('/test:read')).toBe(true)
+      expect(map.has(`${encodeURIComponent('/test')}::${encodeURIComponent('read')}`)).toBe(true)
     })
   })
 })
