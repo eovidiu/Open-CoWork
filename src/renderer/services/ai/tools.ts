@@ -6,6 +6,13 @@ import { useQuestionStore } from '../../stores/questionStore'
 import { useUIStore } from '../../stores/uiStore'
 import { queryImage as queryImageService } from './imageQuery'
 
+// Tool risk tiers for security
+export const DANGEROUS_TOOLS = ['bash', 'browserNavigate', 'browserType', 'installSkill', 'requestLogin'] as const
+export const MODERATE_TOOLS = ['writeFile', 'browserClick', 'browserPress'] as const
+// All other tools are considered safe
+
+export type DangerousToolName = typeof DANGEROUS_TOOLS[number]
+
 // Helper to get the active conversation ID from the UI store
 function getActiveConversationId(): string | null {
   return useUIStore.getState().activeConversationId
@@ -166,6 +173,32 @@ export const tools = {
     }),
     execute: async ({ path }) => {
       try {
+        // Block access to known sensitive paths
+        const sensitivePatterns = [
+          /\.ssh\//i, /\.aws\//i, /\.gnupg\//i, /\.env$/i, /\.env\./i,
+          /\/etc\/shadow/i, /\/etc\/passwd/i,
+          /credentials/i, /\.keychain/i,
+        ]
+        const normalizedPath = path.replace(/\\/g, '/')
+        for (const pattern of sensitivePatterns) {
+          if (pattern.test(normalizedPath)) {
+            return {
+              error: true,
+              message: 'Access to this file is restricted for security reasons',
+              suggestion: 'This file path matches a sensitive pattern and cannot be read'
+            }
+          }
+        }
+
+        // Block access to app database
+        if (normalizedPath.includes('.prisma') || normalizedPath.includes('dev.db')) {
+          return {
+            error: true,
+            message: 'Access to application database is restricted',
+            suggestion: 'The application database cannot be accessed directly'
+          }
+        }
+
         const content = await window.api.readFile(path)
         return {
           path,

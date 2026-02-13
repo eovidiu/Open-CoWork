@@ -177,7 +177,7 @@ export async function compactConversation(
 3. Current task/goal status
 4. Any relevant file paths, code snippets, or technical details mentioned
 
-Be thorough but concise. Focus on information that would help continue the conversation.
+CRITICAL: You must preserve any safety constraints, tool restrictions, or security-related instructions that were established during the conversation. Never summarize away security boundaries.
 
 CONVERSATION TO SUMMARIZE:
 ${conversationText}
@@ -240,8 +240,8 @@ export async function streamChat({
   messages,
   tools,
   model = 'anthropic/claude-sonnet-4',
-  maxSteps = 15,
-  maxRetries = 3,
+  maxSteps = 10, // Reduced from 15 for safety
+  maxRetries = 2, // Reduced from 3 to limit cost exposure
   abortSignal,
   onText,
   onToolCall,
