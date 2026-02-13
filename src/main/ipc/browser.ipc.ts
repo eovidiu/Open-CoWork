@@ -28,6 +28,64 @@ function getPlaywright(): typeof import('playwright') {
   return playwrightModule!
 }
 
+// URL validation for browser navigation
+const BLOCKED_IP_RANGES = [
+  /^127\./,
+  /^10\./,
+  /^172\.(1[6-9]|2\d|3[01])\./,
+  /^192\.168\./,
+  /^169\.254\./,
+  /^0\./,
+  /^::1$/,
+  /^fc00:/,
+  /^fe80:/,
+]
+
+const BLOCKED_HOSTS = [
+  'metadata.google.internal',
+  'metadata.google.com',
+]
+
+function validateBrowserUrl(urlString: string): { valid: boolean; error?: string } {
+  try {
+    const url = new URL(urlString)
+
+    // Only allow http and https
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+      return { valid: false, error: `Blocked URL scheme: ${url.protocol}` }
+    }
+
+    // Block cloud metadata endpoints
+    if (url.hostname === '169.254.169.254' || BLOCKED_HOSTS.includes(url.hostname)) {
+      return { valid: false, error: 'Blocked: cloud metadata endpoint' }
+    }
+
+    // Block private/internal IPs
+    for (const pattern of BLOCKED_IP_RANGES) {
+      if (pattern.test(url.hostname)) {
+        return { valid: false, error: 'Blocked: private/internal IP address' }
+      }
+    }
+
+    return { valid: true }
+  } catch {
+    return { valid: false, error: 'Invalid URL' }
+  }
+}
+
+// Sanitize browser content before feeding to AI
+function sanitizeBrowserContent(content: string): string {
+  // Remove HTML comments (common prompt injection vector)
+  let sanitized = content.replace(/<!--[\s\S]*?-->/g, '')
+  // Remove zero-width characters
+  sanitized = sanitized.replace(/[\u200B-\u200F\u2028-\u202F\uFEFF]/g, '')
+  // Truncate to reasonable length
+  if (sanitized.length > 50000) {
+    sanitized = sanitized.substring(0, 50000) + '\n[Content truncated at 50000 characters]'
+  }
+  return sanitized
+}
+
 // Browser configurations
 interface BrowserConfig {
   name: string
@@ -157,15 +215,12 @@ async function ensureBrowser(preferredBrowserId?: string, headless: boolean = tr
   // Get the browser config
   const browserId = preferredBrowserId || 'chrome'
   const config = getBrowserConfig(browserId)
-  const appDataDir = join(app.getPath('userData'), 'browser-data', browserId)
 
   // Try to launch with the specified browser
   try {
-    const launchOptions: Parameters<typeof chromium.launchPersistentContext>[1] = {
+    const launchOptions: Parameters<typeof chromium.launch>[0] = {
       headless,
-      viewport: { width: 1280, height: 800 },
-      args: ['--disable-blink-features=AutomationControlled'],
-      ignoreDefaultArgs: ['--enable-automation']
+      args: [],
     }
 
     // If using Chrome or Edge, use the channel option to use the installed browser
@@ -173,18 +228,22 @@ async function ensureBrowser(preferredBrowserId?: string, headless: boolean = tr
       launchOptions.channel = config.channel
     }
 
-    // Use app's persistent context - cookies and sessions will be saved here
-    // Note: We can't directly use user's browser profile (it may be locked)
-    // Users will need to log in once, then sessions persist in our app data
-    context = await chromium.launchPersistentContext(appDataDir, launchOptions)
+    // Use ephemeral context - no persistent sessions or cookies
+    browser = await chromium.launch(launchOptions)
+    context = await browser.newContext({
+      viewport: { width: 1280, height: 800 },
+    })
     currentBrowserType = browserId
-    console.log(`[Browser] Launched ${browserId} with persistent context at ${appDataDir}`)
+    console.log(`[Browser] Launched ${browserId} with ephemeral context`)
   } catch (error) {
     // Fallback: launch with default Chromium
     console.log('[Browser] Could not use specified browser, launching with default Chromium:', error)
-    context = await chromium.launchPersistentContext(appDataDir, {
+    browser = await chromium.launch({
       headless,
-      viewport: { width: 1280, height: 800 }
+      args: [],
+    })
+    context = await browser.newContext({
+      viewport: { width: 1280, height: 800 },
     })
     currentBrowserType = 'chromium'
   }
@@ -228,6 +287,10 @@ export function registerBrowserHandlers(): void {
     try {
       const settings = await getBrowserSettings()
       const p = await ensureBrowser(settings.preferredBrowser || undefined, settings.headless)
+      const urlCheck = validateBrowserUrl(url)
+      if (!urlCheck.valid) {
+        return { error: true, message: urlCheck.error }
+      }
       await p.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 })
 
       // Take screenshot after navigation
@@ -306,7 +369,7 @@ export function registerBrowserHandlers(): void {
       const screenshot = await takeScreenshot(p)
 
       return {
-        content: content.trim(),
+        content: sanitizeBrowserContent(content.trim()),
         url: p.url(),
         title: await p.title(),
         screenshot
@@ -532,6 +595,10 @@ export function registerBrowserHandlers(): void {
       const settings = await getBrowserSettings()
       // Always use headless: false for login so user can see and interact with the browser
       const p = await ensureBrowser(settings.preferredBrowser || undefined, false)
+      const urlCheck = validateBrowserUrl(url)
+      if (!urlCheck.valid) {
+        return { error: true, message: urlCheck.error }
+      }
       await p.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 })
 
       return {
