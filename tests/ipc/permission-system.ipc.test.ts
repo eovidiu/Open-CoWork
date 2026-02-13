@@ -10,6 +10,15 @@ import { join } from 'path'
 // Store registered handlers so we can call them directly
 const registeredHandlers: Map<string, Function> = new Map()
 
+// Mock createRateLimiter to disable rate limiting in tests
+vi.mock('../../src/main/ipc/ipc-security', async () => {
+  const actual = await vi.importActual<typeof import('../../src/main/ipc/ipc-security')>('../../src/main/ipc/ipc-security')
+  return {
+    ...actual,
+    createRateLimiter: () => ({ check: () => true, getStats: () => ({ calls: 0, windowMs: 0, maxCalls: Infinity }) })
+  }
+})
+
 // Mock electron modules BEFORE importing the IPC module
 vi.mock('electron', () => ({
   ipcMain: {
@@ -32,13 +41,16 @@ vi.mock('electron', () => ({
   }
 }))
 
+// Mock IPC event with valid sender
+const mockEvent = { sender: { id: 1 } }
+
 // Helper to call an IPC handler
 async function callHandler<T>(channel: string, ...args: unknown[]): Promise<T> {
   const handler = registeredHandlers.get(channel)
   if (!handler) {
     throw new Error(`No handler registered for channel: ${channel}`)
   }
-  return handler(null, ...args) as Promise<T>
+  return handler(mockEvent, ...args) as Promise<T>
 }
 
 // ============================================================================
@@ -387,6 +399,10 @@ describe('Database File Permissions', () => {
 
 describe('Production DB Path in Sensitive Paths', () => {
   beforeAll(async () => {
+    // Initialize sender validation for secureHandler
+    const { setMainWindow } = await import('../../src/main/ipc/ipc-security')
+    setMainWindow({ webContents: { id: 1 } } as any)
+
     // Import filesystem handlers to register them
     const { registerFileSystemHandlers } = await import('../../src/main/ipc/file-system.ipc')
     registerFileSystemHandlers()

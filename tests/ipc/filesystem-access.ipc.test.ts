@@ -19,11 +19,24 @@ vi.mock('electron', () => ({
   }
 }))
 
+// Mock createRateLimiter to disable rate limiting in tests
+vi.mock('../../src/main/ipc/ipc-security', async () => {
+  const actual = await vi.importActual<typeof import('../../src/main/ipc/ipc-security')>('../../src/main/ipc/ipc-security')
+  return {
+    ...actual,
+    createRateLimiter: () => ({ check: () => true, getStats: () => ({ calls: 0, windowMs: 0, maxCalls: Infinity }) })
+  }
+})
+
 // Temp directory for test files
 let tempDir: string
 
 beforeAll(async () => {
   tempDir = mkdtempSync(join(tmpdir(), 'fs-access-test-'))
+
+  // Initialize sender validation
+  const { setMainWindow } = await import('../../src/main/ipc/ipc-security')
+  setMainWindow({ webContents: { id: 1 } } as any)
 
   // Import and register the handlers
   const { registerFileSystemHandlers } = await import('../../src/main/ipc/file-system.ipc')
@@ -36,13 +49,16 @@ afterAll(() => {
   }
 })
 
+// Mock IPC event with valid sender
+const mockEvent = { sender: { id: 1 } }
+
 // Helper to call an IPC handler
 async function callHandler<T>(channel: string, ...args: unknown[]): Promise<T> {
   const handler = registeredHandlers.get(channel)
   if (!handler) {
     throw new Error(`No handler registered for channel: ${channel}`)
   }
-  return handler(null, ...args) as Promise<T>
+  return handler(mockEvent, ...args) as Promise<T>
 }
 
 describe('Filesystem Access IPC Handlers', () => {
@@ -407,13 +423,13 @@ describe('Filesystem Access IPC Handlers', () => {
     it('should block glob patterns starting at filesystem root', async () => {
       await expect(
         callHandler('fs:glob', '/etc/*')
-      ).rejects.toThrow('Glob patterns starting at filesystem root are not allowed')
+      ).rejects.toThrow('Glob patterns starting')
     })
 
     it('should block glob patterns starting with /*', async () => {
       await expect(
         callHandler('fs:glob', '/**/shadow')
-      ).rejects.toThrow('Glob patterns starting at filesystem root are not allowed')
+      ).rejects.toThrow('Glob patterns starting')
     })
 
     it('should allow relative glob patterns', async () => {

@@ -67,6 +67,9 @@ vi.mock('fs/promises', () => ({
   })
 }))
 
+// Mock IPC event with valid sender
+const mockEvent = { sender: { id: 1 } }
+
 describe('Auth Secrets IPC Handlers', () => {
   let cleanup: () => Promise<void>
 
@@ -78,6 +81,10 @@ describe('Auth Secrets IPC Handlers', () => {
 
     // Set a temp path for the userData directory
     process.env.TEST_USER_DATA_PATH = tmpdir()
+
+    // Initialize sender validation
+    const { setMainWindow } = await import('../../src/main/ipc/ipc-security')
+    setMainWindow({ webContents: { id: 1 } } as any)
 
     // Import and register the settings IPC handlers
     const { registerSettingsHandlers } = await import('../../src/main/ipc/settings.ipc')
@@ -100,8 +107,8 @@ describe('Auth Secrets IPC Handlers', () => {
     if (!handler) {
       throw new Error(`No handler registered for channel: ${channel}`)
     }
-    // First arg to handler is the IPC event (we pass null)
-    return handler(null, ...args) as Promise<T>
+    // First arg to handler is the IPC event
+    return handler(mockEvent, ...args) as Promise<T>
   }
 
   describe('handler registration', () => {

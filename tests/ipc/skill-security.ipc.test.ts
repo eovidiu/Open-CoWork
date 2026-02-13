@@ -5,6 +5,15 @@ import { createHash } from 'crypto'
 const registeredHandlers: Map<string, Function> = new Map()
 
 // Mock electron before importing the IPC module
+// Mock createRateLimiter to disable rate limiting in tests
+vi.mock('../../src/main/ipc/ipc-security', async () => {
+  const actual = await vi.importActual<typeof import('../../src/main/ipc/ipc-security')>('../../src/main/ipc/ipc-security')
+  return {
+    ...actual,
+    createRateLimiter: () => ({ check: () => true, getStats: () => ({ calls: 0, windowMs: 0, maxCalls: Infinity }) })
+  }
+})
+
 vi.mock('electron', () => ({
   ipcMain: {
     handle: vi.fn((channel: string, handler: Function) => {
@@ -43,9 +52,16 @@ function mockTextResponse(body: string, options: { status?: number; headers?: Re
 
 describe('Skill Registry Security (IPC Integration)', () => {
   beforeAll(async () => {
+    // Initialize sender validation for secureHandler
+    const { setMainWindow } = await import('../../src/main/ipc/ipc-security')
+    setMainWindow({ webContents: { id: 1 } } as any)
+
     const { registerSkillRegistryHandlers } = await import('../../src/main/ipc/skillregistry.ipc')
     registerSkillRegistryHandlers()
   })
+
+  // Mock IPC event with valid sender
+  const mockEvent = { sender: { id: 1 } }
 
   // Helper to call a registered IPC handler
   async function callHandler<T>(channel: string, ...args: unknown[]): Promise<T> {
@@ -53,7 +69,7 @@ describe('Skill Registry Security (IPC Integration)', () => {
     if (!handler) {
       throw new Error(`No handler registered for channel: ${channel}`)
     }
-    return handler(null, ...args) as Promise<T>
+    return handler(mockEvent, ...args) as Promise<T>
   }
 
   describe('handler registration', () => {

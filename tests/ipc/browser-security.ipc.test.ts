@@ -76,6 +76,15 @@ vi.mock('electron', () => ({
   }
 }))
 
+// Mock createRateLimiter to disable rate limiting in tests
+vi.mock('../../src/main/ipc/ipc-security', async () => {
+  const actual = await vi.importActual<typeof import('../../src/main/ipc/ipc-security')>('../../src/main/ipc/ipc-security')
+  return {
+    ...actual,
+    createRateLimiter: () => ({ check: () => true, getStats: () => ({ calls: 0, windowMs: 0, maxCalls: Infinity }) })
+  }
+})
+
 // Mock the database module to use our test database
 let testPrisma: PrismaClient
 vi.mock('../../src/main/database', () => ({
@@ -116,6 +125,10 @@ describe('Browser Security IPC Handlers', () => {
     testPrisma = ctx.prisma
     cleanup = ctx.cleanup
 
+    // Initialize sender validation for secureHandler
+    const { setMainWindow } = await import('../../src/main/ipc/ipc-security')
+    setMainWindow({ webContents: { id: 1 } } as any)
+
     // Now import and register the IPC handlers
     const { registerBrowserHandlers } = await import('../../src/main/ipc/browser.ipc')
     registerBrowserHandlers()
@@ -147,13 +160,16 @@ describe('Browser Security IPC Handlers', () => {
     // Clearing them would not reflect the actual state of the module.
   })
 
+  // Mock IPC event with valid sender
+  const mockEvent = { sender: { id: 1 } }
+
   // Helper to call an IPC handler
   async function callHandler<T>(channel: string, ...args: unknown[]): Promise<T> {
     const handler = registeredHandlers.get(channel)
     if (!handler) {
       throw new Error(`No handler registered for channel: ${channel}`)
     }
-    return handler(null, ...args) as Promise<T>
+    return handler(mockEvent, ...args) as Promise<T>
   }
 
   describe('handler registration', () => {
