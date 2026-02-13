@@ -13,6 +13,7 @@ import type {
   UpdateSkillInput,
   UpdateConversationInput
 } from '../../shared/types'
+import { secureHandler, createRateLimiter } from './ipc-security'
 
 // Lazy-loaded image service to ensure database is fully initialized
 let imageService: ImageService | null = null
@@ -31,70 +32,73 @@ export function registerDatabaseHandlers(): void {
   const messageService = createMessageService(prisma)
   const skillService = createSkillService(prisma)
 
+  // Rate limiter for moderate operations
+  const moderateLimiter = createRateLimiter(60, 60000) // 60 calls per minute
+
   // Conversations
-  ipcMain.handle('db:conversations:list', async () => {
+  ipcMain.handle('db:conversations:list', secureHandler(async () => {
     return conversationService.list()
-  })
+  }, moderateLimiter))
 
-  ipcMain.handle('db:conversations:get', async (_, id: string) => {
+  ipcMain.handle('db:conversations:get', secureHandler(async (_, id: string) => {
     return conversationService.get(id)
-  })
+  }, moderateLimiter))
 
-  ipcMain.handle('db:conversations:create', async (_, title: string) => {
+  ipcMain.handle('db:conversations:create', secureHandler(async (_, title: string) => {
     return conversationService.create(title)
-  })
+  }, moderateLimiter))
 
-  ipcMain.handle('db:conversations:update', async (_, id: string, data: UpdateConversationInput) => {
+  ipcMain.handle('db:conversations:update', secureHandler(async (_, id: string, data: UpdateConversationInput) => {
     return conversationService.update(id, data)
-  })
+  }, moderateLimiter))
 
-  ipcMain.handle('db:conversations:delete', async (_, id: string) => {
+  ipcMain.handle('db:conversations:delete', secureHandler(async (_, id: string) => {
     // Clean up image files before deleting the conversation
     // (Prisma cascade will handle DB records, but we need to delete files)
     await getImageService().deleteConversationImages(id)
     return conversationService.delete(id)
-  })
+  }, moderateLimiter))
 
   // Messages
-  ipcMain.handle('db:messages:list', async (_, conversationId: string) => {
+  ipcMain.handle('db:messages:list', secureHandler(async (_, conversationId: string) => {
     return messageService.list(conversationId)
-  })
+  }, moderateLimiter))
 
-  ipcMain.handle('db:messages:create', async (_, data: CreateMessageInput) => {
+  ipcMain.handle('db:messages:create', secureHandler(async (_, data: CreateMessageInput) => {
     return messageService.create(data)
-  })
+  }, moderateLimiter))
 
-  ipcMain.handle('db:messages:update', async (_, id: string, data: UpdateMessageInput) => {
+  ipcMain.handle('db:messages:update', secureHandler(async (_, id: string, data: UpdateMessageInput) => {
     return messageService.update(id, data)
-  })
+  }, moderateLimiter))
 
   // Tool Calls
-  ipcMain.handle('db:toolCalls:create', async (_, data: CreateToolCallInput) => {
+  ipcMain.handle('db:toolCalls:create', secureHandler(async (_, data: CreateToolCallInput) => {
     return messageService.createToolCall(data)
-  })
+  }, moderateLimiter))
 
-  ipcMain.handle('db:toolCalls:update', async (_, id: string, data: UpdateToolCallInput) => {
+  ipcMain.handle('db:toolCalls:update', secureHandler(async (_, id: string, data: UpdateToolCallInput) => {
     return messageService.updateToolCall(id, data)
-  })
+  }, moderateLimiter))
 
   // Skills
-  ipcMain.handle('db:skills:list', async () => {
+  ipcMain.handle('db:skills:list', secureHandler(async () => {
     return skillService.list()
-  })
+  }, moderateLimiter))
 
-  ipcMain.handle('db:skills:listEnabled', async () => {
+  ipcMain.handle('db:skills:listEnabled', secureHandler(async () => {
     return skillService.listEnabled()
-  })
+  }, moderateLimiter))
 
-  ipcMain.handle('db:skills:create', async (_, data: CreateSkillInput) => {
+  ipcMain.handle('db:skills:create', secureHandler(async (_, data: CreateSkillInput) => {
     return skillService.create(data)
-  })
+  }, moderateLimiter))
 
-  ipcMain.handle('db:skills:update', async (_, id: string, data: UpdateSkillInput) => {
+  ipcMain.handle('db:skills:update', secureHandler(async (_, id: string, data: UpdateSkillInput) => {
     return skillService.update(id, data)
-  })
+  }, moderateLimiter))
 
-  ipcMain.handle('db:skills:delete', async (_, id: string) => {
+  ipcMain.handle('db:skills:delete', secureHandler(async (_, id: string) => {
     return skillService.delete(id)
-  })
+  }, moderateLimiter))
 }

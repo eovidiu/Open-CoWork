@@ -3,6 +3,7 @@ import { join } from 'path'
 import { platform } from 'os'
 import { existsSync } from 'fs'
 import { getDatabase } from '../database'
+import { secureHandler, createRateLimiter } from './ipc-security'
 
 // Types from playwright (imported dynamically)
 type Browser = Awaited<ReturnType<typeof import('playwright')['chromium']['launch']>>
@@ -277,13 +278,16 @@ async function takeScreenshot(p: Page): Promise<string> {
 }
 
 export function registerBrowserHandlers(): void {
+  // Rate limiter for expensive browser operations
+  const expensiveLimiter = createRateLimiter(10, 60000) // 10 calls per minute
+
   // Get list of available browsers
-  ipcMain.handle('browser:getAvailableBrowsers', async () => {
+  ipcMain.handle('browser:getAvailableBrowsers', secureHandler(async () => {
     return getAvailableBrowsers()
-  })
+  }))
 
   // Navigate to a URL
-  ipcMain.handle('browser:navigate', async (_, url: string) => {
+  ipcMain.handle('browser:navigate', secureHandler(async (_, url: string) => {
     try {
       const settings = await getBrowserSettings()
       const p = await ensureBrowser(settings.preferredBrowser || undefined, settings.headless)
@@ -308,10 +312,10 @@ export function registerBrowserHandlers(): void {
         message: error instanceof Error ? error.message : 'Navigation failed'
       }
     }
-  })
+  }, expensiveLimiter))
 
   // Get current page info
-  ipcMain.handle('browser:getPageInfo', async () => {
+  ipcMain.handle('browser:getPageInfo', secureHandler(async () => {
     try {
       if (!page || page.isClosed()) {
         return {
@@ -330,10 +334,10 @@ export function registerBrowserHandlers(): void {
         message: error instanceof Error ? error.message : 'Failed to get page info'
       }
     }
-  })
+  }))
 
   // Get page content (text only, cleaned up)
-  ipcMain.handle('browser:getContent', async (_, selector?: string) => {
+  ipcMain.handle('browser:getContent', secureHandler(async (_, selector?: string) => {
     try {
       const settings = await getBrowserSettings()
       const p = await ensureBrowser(settings.preferredBrowser || undefined, settings.headless)
@@ -380,10 +384,10 @@ export function registerBrowserHandlers(): void {
         message: error instanceof Error ? error.message : 'Failed to get content'
       }
     }
-  })
+  }, expensiveLimiter))
 
   // Click on an element
-  ipcMain.handle('browser:click', async (_, selector: string) => {
+  ipcMain.handle('browser:click', secureHandler(async (_, selector: string) => {
     try {
       const settings = await getBrowserSettings()
       const p = await ensureBrowser(settings.preferredBrowser || undefined, settings.headless)
@@ -420,10 +424,10 @@ export function registerBrowserHandlers(): void {
         message: error instanceof Error ? error.message : 'Click failed'
       }
     }
-  })
+  }, expensiveLimiter))
 
   // Type text into an input
-  ipcMain.handle('browser:type', async (_, selector: string, text: string) => {
+  ipcMain.handle('browser:type', secureHandler(async (_, selector: string, text: string) => {
     try {
       const settings = await getBrowserSettings()
       const p = await ensureBrowser(settings.preferredBrowser || undefined, settings.headless)
@@ -440,10 +444,10 @@ export function registerBrowserHandlers(): void {
         message: error instanceof Error ? error.message : 'Type failed'
       }
     }
-  })
+  }, expensiveLimiter))
 
   // Press a key (Enter, Tab, etc.)
-  ipcMain.handle('browser:press', async (_, key: string) => {
+  ipcMain.handle('browser:press', secureHandler(async (_, key: string) => {
     try {
       const settings = await getBrowserSettings()
       const p = await ensureBrowser(settings.preferredBrowser || undefined, settings.headless)
@@ -465,10 +469,10 @@ export function registerBrowserHandlers(): void {
         message: error instanceof Error ? error.message : 'Key press failed'
       }
     }
-  })
+  }, expensiveLimiter))
 
   // Take a screenshot
-  ipcMain.handle('browser:screenshot', async () => {
+  ipcMain.handle('browser:screenshot', secureHandler(async () => {
     try {
       const settings = await getBrowserSettings()
       const p = await ensureBrowser(settings.preferredBrowser || undefined, settings.headless)
@@ -487,10 +491,10 @@ export function registerBrowserHandlers(): void {
         message: error instanceof Error ? error.message : 'Screenshot failed'
       }
     }
-  })
+  }))
 
   // Get all links on the page
-  ipcMain.handle('browser:getLinks', async () => {
+  ipcMain.handle('browser:getLinks', secureHandler(async () => {
     try {
       const settings = await getBrowserSettings()
       const p = await ensureBrowser(settings.preferredBrowser || undefined, settings.headless)
@@ -512,10 +516,10 @@ export function registerBrowserHandlers(): void {
         message: error instanceof Error ? error.message : 'Failed to get links'
       }
     }
-  })
+  }))
 
   // Scroll the page
-  ipcMain.handle('browser:scroll', async (_, direction: 'up' | 'down' | 'top' | 'bottom') => {
+  ipcMain.handle('browser:scroll', secureHandler(async (_, direction: 'up' | 'down' | 'top' | 'bottom') => {
     try {
       const settings = await getBrowserSettings()
       const p = await ensureBrowser(settings.preferredBrowser || undefined, settings.headless)
@@ -547,10 +551,10 @@ export function registerBrowserHandlers(): void {
         message: error instanceof Error ? error.message : 'Scroll failed'
       }
     }
-  })
+  }, expensiveLimiter))
 
   // Close the browser
-  ipcMain.handle('browser:close', async () => {
+  ipcMain.handle('browser:close', secureHandler(async () => {
     try {
       if (browser) {
         await browser.close()
@@ -566,10 +570,10 @@ export function registerBrowserHandlers(): void {
         message: error instanceof Error ? error.message : 'Close failed'
       }
     }
-  })
+  }))
 
   // Wait for an element to appear
-  ipcMain.handle('browser:waitFor', async (_, selector: string, timeout?: number) => {
+  ipcMain.handle('browser:waitFor', secureHandler(async (_, selector: string, timeout?: number) => {
     try {
       const settings = await getBrowserSettings()
       const p = await ensureBrowser(settings.preferredBrowser || undefined, settings.headless)
@@ -587,10 +591,10 @@ export function registerBrowserHandlers(): void {
           error instanceof Error ? error.message : `Element not found within timeout: ${selector}`
       }
     }
-  })
+  }, expensiveLimiter))
 
   // Open browser for user login - ALWAYS headful so user can interact
-  ipcMain.handle('browser:openForLogin', async (_, url: string) => {
+  ipcMain.handle('browser:openForLogin', secureHandler(async (_, url: string) => {
     try {
       const settings = await getBrowserSettings()
       // Always use headless: false for login so user can see and interact with the browser
@@ -613,7 +617,7 @@ export function registerBrowserHandlers(): void {
         message: error instanceof Error ? error.message : 'Failed to open browser for login'
       }
     }
-  })
+  }, expensiveLimiter))
 }
 
 // Cleanup on app quit

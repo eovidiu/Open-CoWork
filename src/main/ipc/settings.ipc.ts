@@ -5,6 +5,7 @@ import {
   type SecureStorageBackend
 } from '../services/settings.service'
 import type { UpdateSettingsInput } from '../../shared/types'
+import { secureHandler } from './ipc-security'
 
 // Electron-specific secure storage implementation
 function createElectronSecureStorage(): SecureStorageBackend {
@@ -55,20 +56,20 @@ export function registerSettingsHandlers(): void {
   const settingsService = createSettingsService(prisma, secureStorage)
 
   // Settings from database
-  ipcMain.handle('settings:get', async () => {
+  ipcMain.handle('settings:get', secureHandler(async () => {
     return settingsService.get()
-  })
+  }))
 
-  ipcMain.handle('settings:update', async (_, data: UpdateSettingsInput) => {
+  ipcMain.handle('settings:update', secureHandler(async (_, data: UpdateSettingsInput) => {
     return settingsService.update(data)
-  })
+  }))
 
   // Secure storage for API key
-  ipcMain.handle('settings:getApiKey', async () => {
+  ipcMain.handle('settings:getApiKey', secureHandler(async () => {
     return settingsService.getApiKey()
-  })
+  }))
 
-  ipcMain.handle('settings:setApiKey', async (_, key: string) => {
+  ipcMain.handle('settings:setApiKey', secureHandler(async (_, key: string) => {
     // Validate API key format
     if (!key || typeof key !== 'string' || key.trim().length === 0) {
       throw new Error('API key cannot be empty')
@@ -81,14 +82,14 @@ export function registerSettingsHandlers(): void {
       throw new Error('API key appears too short to be valid')
     }
     return settingsService.setApiKey(key)
-  })
+  }))
 
-  ipcMain.handle('settings:deleteApiKey', async () => {
+  ipcMain.handle('settings:deleteApiKey', secureHandler(async () => {
     return settingsService.deleteApiKey()
-  })
+  }))
 
   // Return masked API key for UI display (avoids exposing full key to renderer)
-  ipcMain.handle('settings:getApiKeyMasked', async () => {
+  ipcMain.handle('settings:getApiKeyMasked', secureHandler(async () => {
     const key = await settingsService.getApiKey()
     if (!key) return null
     return {
@@ -96,14 +97,14 @@ export function registerSettingsHandlers(): void {
       masked: '••••••••' + key.slice(-4),
       length: key.length
     }
-  })
+  }))
 
   // App paths
-  ipcMain.handle('app:getPath', async () => {
+  ipcMain.handle('app:getPath', secureHandler(async () => {
     return app.getPath('userData')
-  })
+  }))
 
-  ipcMain.handle('app:getHomePath', async () => {
+  ipcMain.handle('app:getHomePath', secureHandler(async () => {
     return app.getPath('home')
-  })
+  }))
 }

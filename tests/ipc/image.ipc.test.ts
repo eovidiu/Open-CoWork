@@ -4,10 +4,14 @@ import type { PrismaClient } from '@prisma/client'
 import { mkdtempSync, rmSync, existsSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
+import type { IpcMainInvokeEvent, WebContents, BrowserWindow } from 'electron'
 
 // Sample 1x1 PNG image as base64 data URL
 const SAMPLE_PNG_DATA_URL =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+
+// Stable sender ID used for the mock main window
+const MOCK_SENDER_ID = 1
 
 // Store registered handlers so we can call them directly
 const registeredHandlers: Map<string, Function> = new Map()
@@ -52,6 +56,11 @@ describe('Image IPC Handlers (Integration)', () => {
     imagesDir = mkdtempSync(join(tmpdir(), 'open-cowork-ipc-test-'))
     process.env.TEST_USER_DATA_PATH = imagesDir
 
+    // Initialize the IPC security layer with a mock main window so that
+    // secureHandler's validateSender() accepts our mock events.
+    const { setMainWindow } = await import('../../src/main/ipc/ipc-security')
+    setMainWindow({ webContents: { id: MOCK_SENDER_ID } } as unknown as BrowserWindow)
+
     // Now import and register the IPC handlers
     // This tests that the handlers register correctly and use the mocked database
     const { registerImageHandlers } = await import('../../src/main/ipc/image.ipc')
@@ -77,14 +86,14 @@ describe('Image IPC Handlers (Integration)', () => {
     conversationId = conversation.id
   })
 
-  // Helper to call an IPC handler
+  // Helper to call an IPC handler with a mock event that passes sender validation
   async function callHandler<T>(channel: string, ...args: unknown[]): Promise<T> {
     const handler = registeredHandlers.get(channel)
     if (!handler) {
       throw new Error(`No handler registered for channel: ${channel}`)
     }
-    // First arg to handler is the IPC event (we pass null)
-    return handler(null, ...args) as Promise<T>
+    const mockEvent = { sender: { id: MOCK_SENDER_ID } } as IpcMainInvokeEvent
+    return handler(mockEvent, ...args) as Promise<T>
   }
 
   describe('handler registration', () => {

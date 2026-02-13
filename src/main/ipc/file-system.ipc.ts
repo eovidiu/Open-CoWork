@@ -3,6 +3,7 @@ import { readFile, writeFile, readdir, stat, access, realpath } from 'fs/promise
 import { join, resolve } from 'path'
 import { spawn } from 'child_process'
 import fg from 'fast-glob'
+import { secureHandler, createRateLimiter } from './ipc-security'
 
 // Sensitive paths that should never be accessed
 const SENSITIVE_PATHS = [
@@ -61,15 +62,19 @@ const ALLOWED_EXECUTABLES = [
 ]
 
 export function registerFileSystemHandlers(): void {
-  ipcMain.handle('fs:readFile', async (_, path: string) => {
+  // Rate limiters
+  const moderateLimiter = createRateLimiter(60, 60000) // 60 calls per minute
+  const expensiveLimiter = createRateLimiter(10, 60000) // 10 calls per minute
+
+  ipcMain.handle('fs:readFile', secureHandler(async (_, path: string) => {
     const validPath = await validatePath(path)
     await checkFileSize(validPath, MAX_READ_SIZE)
     const content = await readFile(validPath, 'utf-8')
     return content
-  })
+  }, moderateLimiter))
 
   // Read file as base64 (for binary files like images)
-  ipcMain.handle('fs:readFileBase64', async (_, path: string) => {
+  ipcMain.handle('fs:readFileBase64', secureHandler(async (_, path: string) => {
     const validPath = await validatePath(path)
     await checkFileSize(validPath, MAX_READ_SIZE)
     const buffer = await readFile(validPath)
@@ -95,17 +100,17 @@ export function registerFileSystemHandlers(): void {
       mimeType,
       dataUrl: `data:${mimeType};base64,${base64}`
     }
-  })
+  }, moderateLimiter))
 
-  ipcMain.handle('fs:writeFile', async (_, path: string, content: string) => {
+  ipcMain.handle('fs:writeFile', secureHandler(async (_, path: string, content: string) => {
     const validPath = await validatePath(path)
     if (content.length > MAX_WRITE_SIZE) {
       throw new Error(`Content too large: exceeds ${(MAX_WRITE_SIZE / 1024 / 1024).toFixed(0)}MB write limit`)
     }
     await writeFile(validPath, content, 'utf-8')
-  })
+  }, moderateLimiter))
 
-  ipcMain.handle('fs:readDirectory', async (_, path: string) => {
+  ipcMain.handle('fs:readDirectory', secureHandler(async (_, path: string) => {
     const validPath = await validatePath(path)
     const entries = await readdir(validPath, { withFileTypes: true })
     const results = await Promise.all(
@@ -122,19 +127,19 @@ export function registerFileSystemHandlers(): void {
       })
     )
     return results
-  })
+  }, moderateLimiter))
 
-  ipcMain.handle('fs:exists', async (_, path: string) => {
+  ipcMain.handle('fs:exists', secureHandler(async (_, path: string) => {
     try {
       await access(path)
       return true
     } catch {
       return false
     }
-  })
+  }))
 
   // Glob - find files matching a pattern
-  ipcMain.handle('fs:glob', async (_, pattern: string, cwd?: string) => {
+  ipcMain.handle('fs:glob', secureHandler(async (_, pattern: string, cwd?: string) => {
     const basePath = cwd || process.cwd()
 
     // Block patterns that start at filesystem root
@@ -162,10 +167,10 @@ export function registerFileSystemHandlers(): void {
       modifiedAt: entry.stats?.mtime,
       ...(matches.length > MAX_GLOB_RESULTS ? { truncated: true, totalMatches: matches.length } : {})
     }))
-  })
+  }, expensiveLimiter))
 
   // Grep - search file contents for a pattern
-  ipcMain.handle('fs:grep', async (_, pattern: string, searchPath: string, options?: { maxResults?: number }) => {
+  ipcMain.handle('fs:grep', secureHandler(async (_, pattern: string, searchPath: string, options?: { maxResults?: number }) => {
     const maxResults = Math.min(options?.maxResults || 100, MAX_GREP_RESULTS)
     const results: Array<{
       file: string
@@ -247,10 +252,10 @@ export function registerFileSystemHandlers(): void {
     }
 
     return results
-  })
+  }, expensiveLimiter))
 
   // Bash - execute shell commands (with allowlist validation)
-  ipcMain.handle('fs:bash', async (_, command: string, options?: { cwd?: string; timeout?: number }) => {
+  ipcMain.handle('fs:bash', secureHandler(async (_, command: string, options?: { cwd?: string; timeout?: number }) => {
     const cwd = options?.cwd || process.cwd()
     const timeout = options?.timeout || 30000 // 30 second default timeout
 
@@ -340,14 +345,14 @@ export function registerFileSystemHandlers(): void {
         clearTimeout(timeoutId)
       })
     })
-  })
+  }, expensiveLimiter))
 
   // Dialog handlers
-  ipcMain.handle('dialog:open', async (_, options: Electron.OpenDialogOptions) => {
+  ipcMain.handle('dialog:open', secureHandler(async (_, options: Electron.OpenDialogOptions) => {
     return dialog.showOpenDialog(options)
-  })
+  }))
 
-  ipcMain.handle('dialog:save', async (_, options: Electron.SaveDialogOptions) => {
+  ipcMain.handle('dialog:save', secureHandler(async (_, options: Electron.SaveDialogOptions) => {
     return dialog.showSaveDialog(options)
-  })
+  }))
 }
