@@ -1,5 +1,4 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import { electronAPI } from '@electron-toolkit/preload'
 
 // Custom APIs for renderer
 const api = {
@@ -49,8 +48,6 @@ const api = {
   // Database - Permissions
   checkPermission: (path: string, operation: string) =>
     ipcRenderer.invoke('permissions:check', path, operation),
-  grantPermission: (path: string, operation: string, scope: string) =>
-    ipcRenderer.invoke('permissions:grant', path, operation, scope),
   revokePermission: (path: string, operation: string) =>
     ipcRenderer.invoke('permissions:revoke', path, operation),
   listPermissions: () => ipcRenderer.invoke('permissions:list'),
@@ -107,7 +104,7 @@ const api = {
   // App
   getAppPath: () => ipcRenderer.invoke('app:getPath'),
   getHomePath: () => ipcRenderer.invoke('app:getHomePath'),
-  getPlatform: () => process.platform,
+  getPlatform: () => ipcRenderer.invoke('app:getPlatform'),
 
   // Skill Registry
   skillRegistrySearch: (query: string) => ipcRenderer.invoke('skillregistry:search', query),
@@ -151,14 +148,11 @@ const api = {
 // Expose in main world
 if (process.contextIsolated) {
   try {
-    contextBridge.exposeInMainWorld('electron', electronAPI)
     contextBridge.exposeInMainWorld('api', api)
   } catch (error) {
     console.error(error)
   }
 } else {
-  // @ts-ignore (define in dts)
-  window.electron = electronAPI
   // @ts-ignore (define in dts)
   window.api = api
 }
