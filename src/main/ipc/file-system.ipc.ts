@@ -194,27 +194,42 @@ export function registerFileSystemHandlers(): void {
       throw new Error(`Invalid CWD: ${cwd} - ${error instanceof Error ? error.message : 'does not exist'}`)
     }
 
-    // Extract first command from the command string (handle pipes and redirects)
-    const firstCommand = command.trim().split(/[|;&]/, 1)[0].trim()
-    const programMatch = firstCommand.match(/^\s*(\S+)/)
-    if (!programMatch) {
-      throw new Error('Invalid command: empty or malformed')
-    }
-
-    // Extract the program name (handle full paths like /usr/bin/ls)
-    const programPath = programMatch[1]
-    const programName = programPath.split('/').pop() || programPath
-
-    // Validate against allowlist
-    if (!ALLOWED_EXECUTABLES.includes(programName)) {
+    // Block command substitution — cannot be statically validated
+    if (/\$\(/.test(command) || /`/.test(command)) {
       throw new Error(
-        `Command blocked for security: "${programName}" is not in the allowlist. ` +
-        `Allowed executables: ${ALLOWED_EXECUTABLES.join(', ')}`
+        'Command blocked for security: command substitution ($() and backticks) is not allowed'
       )
     }
 
-    // Use spawn with shell mode (sh -c) after validation
-    // This allows pipes/redirects while still validating the primary command
+    // Split on all pipeline/chain/sequence operators and validate every command
+    const segments = command.trim().split(/\s*(?:\|{1,2}|&&|;)\s*/)
+    if (segments.length === 0 || segments.every((s) => !s.trim())) {
+      throw new Error('Invalid command: empty or malformed')
+    }
+
+    for (const segment of segments) {
+      const trimmed = segment.trim()
+      if (!trimmed) continue
+
+      // Strip leading env var assignments (e.g. FOO=bar cmd)
+      const withoutEnvVars = trimmed.replace(/^(\S+=\S*\s+)*/, '')
+      const programMatch = withoutEnvVars.match(/^\s*(\S+)/)
+      if (!programMatch) continue
+
+      // Extract the program name (handle full paths like /usr/bin/ls)
+      const programPath = programMatch[1]
+      const programName = programPath.split('/').pop() || programPath
+
+      // Validate against allowlist
+      if (!ALLOWED_EXECUTABLES.includes(programName)) {
+        throw new Error(
+          `Command blocked for security: "${programName}" is not in the allowlist. ` +
+          `Allowed executables: ${ALLOWED_EXECUTABLES.join(', ')}`
+        )
+      }
+    }
+
+    // Use spawn with sh -c after full pipeline validation
     return new Promise((resolve, reject) => {
       const child = spawn('sh', ['-c', command], {
         cwd,

