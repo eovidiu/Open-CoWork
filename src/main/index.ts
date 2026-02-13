@@ -5,6 +5,28 @@ import { initDatabase, closeDatabase } from './database'
 import { registerIpcHandlers } from './ipc'
 import { setMainWindow } from './ipc/ipc-security'
 
+/**
+ * Security Note: TLS Certificate Pinning
+ *
+ * KNOWN LIMITATION: This application does not implement TLS certificate pinning
+ * for critical endpoints (OpenRouter API, skillregistry.io).
+ *
+ * Rationale:
+ * - Certificate pinning in Electron is complex and can break on CA rotations
+ * - False positives can completely break the application for users
+ * - Risk is partially mitigated by:
+ *   - CSP restrictions (connect-src allowlist in PR-05)
+ *   - HTTPS enforcement for all external connections
+ *   - Electron's built-in certificate validation
+ *
+ * TODO: Consider implementing certificate pinning with graceful fallback and
+ * user notification in a future release. Would require:
+ * - session.defaultSession.setCertificateVerifyProc()
+ * - Pin rotation strategy
+ * - User notification on certificate warnings
+ * - Fallback mechanism for legitimate CA changes
+ */
+
 function createWindow(): BrowserWindow {
   const mainWindow = new BrowserWindow({
     width: 1200,

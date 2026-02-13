@@ -1,9 +1,32 @@
 import { ipcMain, dialog } from 'electron'
 import { writeFile } from 'fs/promises'
+import { resolve } from 'path'
 import { getDatabase } from '../database'
 import { createConversationService } from '../services/conversation.service'
 import { createExportService } from '../services/export.service'
 import { secureHandler } from './ipc-security'
+
+// Sensitive paths that should never be written to
+const SENSITIVE_PATHS = [
+  '/.ssh/', '/.aws/', '/.gnupg/', '/.config/gcloud/',
+  '/etc/', '/.keychain/', '/.credential', '/.netrc',
+  '/dev.db', '/.prisma/',
+]
+
+/**
+ * Validates that the export path is not in a sensitive directory.
+ * Defense-in-depth: the save dialog already constrains choices, but this
+ * prevents accidental writes to critical system directories.
+ */
+function validateExportPath(filePath: string): void {
+  const normalized = resolve(filePath).toLowerCase()
+
+  for (const sensitive of SENSITIVE_PATHS) {
+    if (normalized.includes(sensitive.toLowerCase())) {
+      throw new Error('Cannot export to sensitive system directory')
+    }
+  }
+}
 
 export function registerExportHandlers(): void {
   const prisma = getDatabase()
@@ -40,6 +63,9 @@ export function registerExportHandlers(): void {
     if (result.canceled || !result.filePath) {
       return { success: false, canceled: true }
     }
+
+    // Validate the export path (defense-in-depth)
+    validateExportPath(result.filePath)
 
     // Write the file
     await writeFile(result.filePath, markdown, 'utf-8')
