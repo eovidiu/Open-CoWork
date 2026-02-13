@@ -22,6 +22,8 @@ extraResources:
     to: app.asar.unpacked/node_modules/.prisma/
     filter:
       - '**/*'
+# TODO: Enable asar integrity checking when Electron Fuses are configured
+# See: https://www.electronjs.org/docs/latest/tutorial/fuses
 asarUnpack:
   - resources/**
   - node_modules/.prisma/**
@@ -44,11 +46,10 @@ mac:
   icon: resources/icon.icns
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:
-    - NSCameraUsageDescription: Application requests access to the device's camera.
-    - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
     - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
     - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
-  notarize: false
+  # notarize: true  # Enable for production releases (requires Apple Developer account)
+  notarize: false  # TODO: Enable when Apple Developer credentials are configured
   target:
     - dmg
     - zip
@@ -63,6 +64,7 @@ linux:
   category: Development
 appImage:
   artifactName: ${name}-${version}.${ext}
-publish:
-  provider: generic
-  url: https://example.com/auto-updates
+# Auto-update disabled until a real update server is configured
+# publish:
+#   provider: generic
+#   url: https://example.com/auto-updates
