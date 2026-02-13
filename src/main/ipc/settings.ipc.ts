@@ -35,7 +35,7 @@ function createElectronSecureStorage(): SecureStorageBackend {
       const keyPath = await getKeyPath()
 
       const encrypted = safeStorage.encryptString(value)
-      await fs.writeFile(keyPath, encrypted)
+      await fs.writeFile(keyPath, encrypted, { mode: 0o600 })
     },
 
     delete: async () => {
@@ -69,11 +69,33 @@ export function registerSettingsHandlers(): void {
   })
 
   ipcMain.handle('settings:setApiKey', async (_, key: string) => {
+    // Validate API key format
+    if (!key || typeof key !== 'string' || key.trim().length === 0) {
+      throw new Error('API key cannot be empty')
+    }
+    // OpenRouter keys start with 'sk-or-'
+    if (!key.startsWith('sk-or-') && !key.startsWith('sk-')) {
+      throw new Error('Invalid API key format. OpenRouter keys typically start with "sk-or-"')
+    }
+    if (key.length < 20) {
+      throw new Error('API key appears too short to be valid')
+    }
     return settingsService.setApiKey(key)
   })
 
   ipcMain.handle('settings:deleteApiKey', async () => {
     return settingsService.deleteApiKey()
+  })
+
+  // Return masked API key for UI display (avoids exposing full key to renderer)
+  ipcMain.handle('settings:getApiKeyMasked', async () => {
+    const key = await settingsService.getApiKey()
+    if (!key) return null
+    return {
+      exists: true,
+      masked: '••••••••' + key.slice(-4),
+      length: key.length
+    }
   })
 
   // App paths
