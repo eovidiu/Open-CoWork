@@ -2,7 +2,7 @@
   "project": "open-cowork",
   "created": "2026-02-14",
   "total_features": 26,
-  "passing": 3,
+  "passing": 5,
   "source": "analysis/general-security-analysis-2026-02-14.md",
   "features": [
     {
@@ -74,8 +74,8 @@
         "Add integration tests for permission-gated operations",
         "Run general-security-analyzer on Dim 2 to verify Theme 4 resolved"
       ],
-      "passes": false,
-      "notes": "Theme 4. permission.service.ts is fully implemented but never called. ~4h."
+      "passes": true,
+      "notes": "Theme 4. Completed 2026-02-14. Shared singleton via getPermissionService() in database.ts. Permission checks on fs:readFile, fs:readFileBase64, fs:writeFile, fs:readDirectory, fs:glob, fs:grep, fs:bash, browser:navigate, browser:openForLogin. 14 enforcement integration tests."
     },
     {
       "id": "F005",
@@ -91,8 +91,8 @@
         "Add test confirming getApiKey IPC channel no longer exists",
         "Run general-security-analyzer on Dim 5 and Dim 6 to verify Theme 8 resolved"
       ],
-      "passes": false,
-      "notes": "Theme 8. preload/index.ts:68. Any XSS exfiltrates API key. ~4h."
+      "passes": true,
+      "notes": "Theme 8. Completed 2026-02-14. Removed settings:getApiKey handler. webRequest interceptor injects Authorization header at network level for openrouter.ai. Renderer uses hasApiKey (boolean) and getApiKeyMasked. Raw ipcRenderer no longer exposed."
     },
     {
       "id": "F006",

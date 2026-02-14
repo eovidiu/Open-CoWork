@@ -1,16 +1,16 @@
 # Context Summary
 
 ## Active Context
-- Currently working on: P0 security remediation (3 of 7 P0 items done: F001, F006, F012)
-- Blocking issues: 39 unique FAIL findings remain (3 resolved this session)
-- Next up: F005 (remove getApiKey from preload), F004 (wire PermissionService), F002 (HITL gates)
+- Currently working on: P0 security remediation (5 of 7 P0 items done: F001, F004, F005, F006, F012)
+- Blocking issues: F002 (HITL gates — most complex), F003 (Electron Fuses), F007 (code signing — needs certs)
+- Next up: F002 (HITL approval gates), F003 (Electron Fuses)
 
 ## Cross-Cutting Concerns
 - This is an Electron app that executes shell commands and accesses the file system on behalf of an AI — security is the dominant concern
 - Specification completeness is ~25% — most behavior is implicit in code
 - No tests exist for renderer, E2E, or security paths
-- **39 unique security FAIL findings** remaining (42 from analysis minus 3 resolved: F001, F006, F012)
-- 618 tests passing across 19 test files (up from 605 at baseline)
+- **37 unique security FAIL findings** remaining (42 from analysis minus 5 resolved: F001, F004, F005, F006, F012)
+- 633 tests passing across 20 test files (up from 605 at baseline)
 
 ## Domain: Open CoWork
 
@@ -33,10 +33,12 @@
 - exec() → spawn(), path validation added, browser URL validation + ephemeral contexts
 - Skill content sanitization added, API key uses safeStorage
 
-**Remediated this session (3 items):**
+**Remediated this session (5 items):**
 1. ~~Bash allowlist includes interpreters~~ → F001: Removed 13 interpreters + added argument-level validation
 6. ~~XSS: no rehype-sanitize~~ → F006: rehype-sanitize v6.0.0 with GitHub schema
 - ~~fs:exists bypasses validatePath~~ → F012: validatePath added to fs:exists, glob CWD, bash CWD
+- ~~Permission service never wired~~ → F004: Shared singleton, checks on 9 IPC handlers, 14 enforcement tests
+- ~~getApiKey returns full key to renderer~~ → F005: Handler removed, webRequest injects key at network level
 
 **Top remaining issues (15 themes, see full report):**
 1. No HITL approval gates — DANGEROUS_TOOLS defined but never enforced — critical
@@ -51,7 +53,6 @@
 ### Gotchas
 - CLAUDE.md now exists in the repo (was missing at 2026-02-10)
 - Auto-update URL in electron-builder.yml is a placeholder (example.com) — do not ship
-- Permission service is fully implemented but never wired into any handler — decorative security
 - `DANGEROUS_TOOLS` and `MODERATE_TOOLS` arrays in tools.ts are dead code — never imported anywhere
 - electron-builder 24.x has CVE-2024-27303 (ASAR integrity bypass)
 - electron-updater 6.1.7 has CVE-2024-39698 (< 6.3.0)

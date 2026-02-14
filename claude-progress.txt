@@ -72,3 +72,36 @@ Agent: Orchestrator + 3 parallel coding agents + 1 security verification agent
 - 618 tests currently passing across 19 files
 
 ---
+
+## Session 3: F004, F005
+Date: 2026-02-14
+Agent: Orchestrator + 2 parallel coding agents + 1 security verification agent
+
+### Worked On:
+- F004: Wire PermissionService into IPC handlers (P0)
+- F005: Remove getApiKey from preload (P0)
+
+### Completed:
+- F004: Shared getPermissionService() singleton in database.ts. Permission checks added to fs:readFile, fs:readFileBase64, fs:writeFile, fs:readDirectory, fs:glob, fs:grep, fs:bash, browser:navigate, browser:openForLogin. permissions.ipc.ts uses shared instance. 14 new enforcement integration tests.
+- F005: Removed settings:getApiKey handler entirely. Added webRequest interceptor to inject Authorization header at network level for openrouter.ai. Renderer uses hasApiKey (boolean) and getApiKeyMasked. All 14 renderer files updated. Exported createElectronSecureStorage.
+
+### Security Verification:
+- Ran security verification agent post-implementation
+- F005 VERIFIED: API key unreachable from renderer, webRequest correctly scoped, raw ipcRenderer removed
+- F004 VERIFIED: Permission checks correctly placed on 4 original handlers
+- CRITICAL finding: fs:readFileBase64 had NO permission check (bypass of fs:readFile) -> Fixed
+- HIGH findings: fs:readDirectory, fs:glob, fs:grep, browser:openForLogin had no permission checks -> Fixed
+- HIGH finding: webRequest interceptor recreated settingsService per request -> Fixed (cached)
+- LOW: Type declarations still declare unused window.electron, fs:exists leaks existence info
+
+### Git Commits:
+- 239754f: security: implement F004 and F005
+
+### For Next Agent:
+- Next P0 features: F002 (HITL gates), F003 (Electron Fuses), F007 (code signing)
+- F002 is the most complex — needs an approval UI component in the renderer
+- F003 and F007 need build infrastructure and certificates from Ovidiu
+- 633 tests currently passing across 20 test files
+- 5 of 7 P0 items done (F001, F004, F005, F006, F012)
+
+---
