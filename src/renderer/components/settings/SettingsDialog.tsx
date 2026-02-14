@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Trash2, Globe, ChevronRight } from 'lucide-react'
+import { Trash2, Globe, ChevronRight, Shield } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -12,6 +12,7 @@ import { Input } from '../ui/input'
 import { useSettings, useApiKey, useAvailableBrowsers } from '../../hooks/useSettings'
 import { cn } from '../../lib/utils'
 import { BrowserSelectionDialog } from './BrowserSelectionDialog'
+import { PrivacyPolicyDialog } from '../privacy/PrivacyPolicy'
 
 interface SettingsDialogProps {
   open: boolean
@@ -24,6 +25,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
   const { browsers } = useAvailableBrowsers()
   const [newApiKey, setNewApiKey] = useState('')
   const [showBrowserDialog, setShowBrowserDialog] = useState(false)
+  const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false)
 
   const selectedBrowser = browsers.find((b) => b.id === settings?.preferredBrowser)
 
@@ -156,9 +158,28 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
               </label>
             </div>
           </div>
+
+          {/* Privacy Policy Section */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Privacy</label>
+            <button
+              onClick={() => setShowPrivacyPolicy(true)}
+              className="flex w-full items-center justify-between rounded-md border bg-background px-3 py-2 text-sm hover:bg-accent"
+            >
+              <div className="flex items-center gap-2">
+                <Shield className="h-4 w-4 text-muted-foreground" />
+                <span>Privacy Policy</span>
+              </div>
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            </button>
+            <p className="text-xs text-muted-foreground">
+              Review how Open CoWork handles your data
+            </p>
+          </div>
         </div>
 
         <BrowserSelectionDialog open={showBrowserDialog} onOpenChange={setShowBrowserDialog} />
+        <PrivacyPolicyDialog open={showPrivacyPolicy} onOpenChange={setShowPrivacyPolicy} />
       </DialogContent>
     </Dialog>
   )

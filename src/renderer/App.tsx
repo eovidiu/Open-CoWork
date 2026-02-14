@@ -2,12 +2,14 @@ import { useEffect, useState, useRef } from 'react'
 import { useSettings } from './hooks/useSettings'
 import { AppShell } from './components/layout/AppShell'
 import { OnboardingWizard } from './components/onboarding/OnboardingWizard'
+import { PrivacyNotice } from './components/privacy/PrivacyNotice'
 import { Toaster } from './components/ui/toaster'
 import { initAnalytics, trackAppOpened } from './services/analytics'
 
 function App() {
   const { settings, isLoading } = useSettings()
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const [privacyAccepted, setPrivacyAccepted] = useState(false)
   const analyticsInitialized = useRef(false)
 
   // Initialize analytics once settings are loaded
@@ -17,6 +19,13 @@ function App() {
       initAnalytics().then(() => {
         trackAppOpened()
       })
+    }
+  }, [settings])
+
+  // Track privacy acceptance from settings
+  useEffect(() => {
+    if (settings) {
+      setPrivacyAccepted(!!settings.privacyAccepted)
     }
   }, [settings])
 
@@ -51,6 +60,16 @@ function App() {
       <div className="flex h-screen items-center justify-center">
         <div className="animate-pulse text-muted-foreground">Loading...</div>
       </div>
+    )
+  }
+
+  // Privacy notice must be accepted before anything else
+  if (!privacyAccepted) {
+    return (
+      <>
+        <PrivacyNotice onAccept={() => setPrivacyAccepted(true)} />
+        <Toaster />
+      </>
     )
   }
 

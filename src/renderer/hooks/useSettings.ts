@@ -15,6 +15,7 @@ export function useSettings() {
       analyticsOptIn?: boolean
       onboardingComplete?: boolean
       preferredBrowser?: string
+      privacyAccepted?: boolean
     }) => window.api.updateSettings(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings'] })

@@ -61,6 +61,7 @@ export interface UpdateSettingsInput {
   onboardingComplete?: boolean
   preferredBrowser?: string
   browserHeadless?: boolean
+  privacyAccepted?: boolean
 }
 
 // External/UI types (not from database)

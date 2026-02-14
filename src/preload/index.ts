@@ -61,6 +61,7 @@ const api = {
     analyticsOptIn?: boolean
     onboardingComplete?: boolean
     browserHeadless?: boolean
+    privacyAccepted?: boolean
   }) => ipcRenderer.invoke('settings:update', data),
 
   // Secure Storage (API Key)

@@ -85,5 +85,6 @@ model Settings {
   onboardingComplete Boolean  @default(false)
   preferredBrowser   String?  // "chrome", "arc", "edge", "brave", etc.
   browserHeadless    Boolean  @default(true) // Run browser in headless mode by default
+  privacyAccepted    Boolean  @default(false)
   updatedAt          DateTime @updatedAt
 }
