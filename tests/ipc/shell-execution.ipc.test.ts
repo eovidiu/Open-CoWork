@@ -146,10 +146,13 @@ describe('Shell Execution Security (Integration)', () => {
       expect(result.stdout).toContain('git version')
     })
 
-    it('should allow "node" (in allowlist)', async () => {
-      const result = await callHandler<BashResult>('fs:bash', 'node --version', { cwd: tempDir })
-      expect(result.exitCode).toBe(0)
-      expect(result.stdout).toMatch(/^v\d+/)
+    it('should block "node" (interpreter removed from allowlist)', async () => {
+      await expect(
+        callHandler<BashResult>('fs:bash', 'node --version', { cwd: tempDir })
+      ).rejects.toThrow(/Command blocked for security/)
+      await expect(
+        callHandler<BashResult>('fs:bash', 'node --version', { cwd: tempDir })
+      ).rejects.toThrow(/"node" is not in the allowlist/)
     })
 
     it('should allow "wc" (in allowlist)', async () => {
@@ -367,9 +370,9 @@ describe('Shell Execution Security (Integration)', () => {
     })
 
     it('should timeout long-running commands with custom timeout', async () => {
-      // "sleep" is not in the allowlist, so use sh -c via "bash" which is allowed
+      // Use find on root filesystem which will run long enough to trigger the timeout
       await expect(
-        callHandler<BashResult>('fs:bash', 'bash -c "sleep 60"', { cwd: tempDir, timeout: 500 })
+        callHandler<BashResult>('fs:bash', 'find / -name "nonexistent_file_xyz_timeout_test"', { cwd: tempDir, timeout: 500 })
       ).rejects.toThrow(/timed out/)
     }, 10000)
 
@@ -419,10 +422,9 @@ describe('Shell Execution Security (Integration)', () => {
   describe('allowlist completeness', () => {
     const expectedAllowlist = [
       'ls', 'cat', 'head', 'tail', 'wc', 'sort', 'uniq', 'find', 'grep', 'awk', 'sed',
-      'echo', 'pwd', 'whoami', 'date', 'which', 'file', 'diff', 'git', 'node', 'npm',
-      'npx', 'pnpm', 'python', 'python3', 'pip', 'pip3', 'curl', 'wget', 'tar', 'gzip',
-      'gunzip', 'zip', 'unzip', 'mkdir', 'cp', 'mv', 'touch', 'chmod', 'tee', 'xargs',
-      'env', 'sh', 'bash', 'zsh'
+      'echo', 'pwd', 'whoami', 'date', 'which', 'file', 'diff', 'git',
+      'npm', 'pnpm', 'pip', 'pip3', 'tar', 'gzip',
+      'gunzip', 'zip', 'unzip', 'mkdir', 'cp', 'mv', 'touch', 'chmod', 'tee', 'xargs'
     ]
 
     it.each(
@@ -444,7 +446,9 @@ describe('Shell Execution Security (Integration)', () => {
       'dd', 'mkfs', 'fdisk', 'mount', 'umount', 'nc', 'ncat', 'nmap',
       'telnet', 'ssh', 'scp', 'rsync', 'chown', 'chroot', 'systemctl',
       'service', 'crontab', 'at', 'useradd', 'userdel', 'passwd',
-      'iptables', 'open', 'osascript', 'pbcopy', 'pbpaste'
+      'iptables', 'open', 'osascript', 'pbcopy', 'pbpaste',
+      'sh', 'bash', 'zsh', 'python', 'python3', 'node', 'npx', 'env',
+      'curl', 'wget'
     ]
 
     it.each(

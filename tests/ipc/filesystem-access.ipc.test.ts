@@ -414,6 +414,12 @@ describe('Filesystem Access IPC Handlers', () => {
         const result = await callHandler<boolean>('fs:exists', join(tempDir, 'does-not-exist.txt'))
         expect(result).toBe(false)
       })
+
+      it('should return false for paths in SENSITIVE_PATHS', async () => {
+        // fs:exists should not reveal whether sensitive paths exist
+        const result = await callHandler<boolean>('fs:exists', '/etc/passwd')
+        expect(result).toBe(false)
+      })
     })
   })
 

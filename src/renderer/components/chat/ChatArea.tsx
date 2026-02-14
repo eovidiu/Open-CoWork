@@ -19,6 +19,7 @@ import {
 import logoImage from '../../assets/logo.png'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import rehypeSanitize from 'rehype-sanitize'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Dialog, DialogContent } from '../ui/dialog'
 import { ChatInput, type ChatInputHandle, type Attachment } from './ChatInput'
@@ -565,7 +566,7 @@ const MessageBubble = memo(function MessageBubble({
             <div className="whitespace-pre-wrap text-base leading-relaxed">{displayContent}</div>
           ) : (
             <div className="prose dark:prose-invert max-w-none prose-p:my-4 prose-ul:my-4 prose-ol:my-4 prose-li:my-1 prose-headings:my-4 prose-p:leading-relaxed">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{displayContent}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>{displayContent}</ReactMarkdown>
             </div>
           )}
         </div>

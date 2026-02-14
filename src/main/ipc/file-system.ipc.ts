@@ -55,10 +55,9 @@ async function checkFileSize(filePath: string, maxSize: number): Promise<void> {
 // Allowlist of permitted executables for bash commands
 const ALLOWED_EXECUTABLES = [
   'ls', 'cat', 'head', 'tail', 'wc', 'sort', 'uniq', 'find', 'grep', 'awk', 'sed',
-  'echo', 'pwd', 'whoami', 'date', 'which', 'file', 'diff', 'git', 'node', 'npm',
-  'npx', 'pnpm', 'python', 'python3', 'pip', 'pip3', 'curl', 'wget', 'tar', 'gzip',
-  'gunzip', 'zip', 'unzip', 'mkdir', 'cp', 'mv', 'touch', 'chmod', 'tee', 'xargs',
-  'env', 'sh', 'bash', 'zsh'
+  'echo', 'pwd', 'whoami', 'date', 'which', 'file', 'diff', 'git',
+  'npm', 'pnpm', 'pip', 'pip3', 'tar', 'gzip',
+  'gunzip', 'zip', 'unzip', 'mkdir', 'cp', 'mv', 'touch', 'chmod', 'tee', 'xargs'
 ]
 
 export function registerFileSystemHandlers(): void {
@@ -131,6 +130,7 @@ export function registerFileSystemHandlers(): void {
 
   ipcMain.handle('fs:exists', secureHandler(async (_, path: string) => {
     try {
+      await validatePath(path)
       await access(path)
       return true
     } catch {
