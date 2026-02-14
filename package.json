@@ -23,8 +23,8 @@
     "prebuild:linux": "prisma generate && pnpm run copy-prisma",
     "postbuild": "node scripts/inject-prisma-bootstrap.js",
     "build:mac": "pnpm run prebuild:mac && electron-vite build && pnpm run postbuild && electron-builder --mac",
-    "build:win": "pnpm run prebuild:win && electron-vite build && electron-builder --win",
-    "build:linux": "pnpm run prebuild:linux && electron-vite build && electron-builder --linux",
+    "build:win": "pnpm run prebuild:win && electron-vite build && pnpm run postbuild && electron-builder --win",
+    "build:linux": "pnpm run prebuild:linux && electron-vite build && pnpm run postbuild && electron-builder --linux",
     "dist": "pnpm run prebuild:mac && electron-vite build && electron-builder --mac --win --linux"
   },
   "dependencies": {
@@ -56,6 +56,7 @@
   },
   "devDependencies": {
     "@electron-toolkit/tsconfig": "^1.0.1",
+    "@electron/fuses": "^2.0.0",
     "@tailwindcss/typography": "^0.5.15",
     "@types/better-sqlite3": "^7.6.11",
     "@types/node": "^20.11.16",

@@ -1,5 +1,6 @@
 appId: com.opencowork.app
 productName: Open CoWork
+afterPack: scripts/set-electron-fuses.js
 directories:
   buildResources: resources
   output: dist
