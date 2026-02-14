@@ -39,3 +39,4 @@ pnpm-debug.log*
 src/main/generated/prisma
 src/renderer/components/ui/
 .playwright-mcp
+sbom.json

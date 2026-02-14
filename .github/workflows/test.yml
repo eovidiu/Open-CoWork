@@ -35,3 +35,16 @@ jobs:
 
       - name: Run tests
         run: pnpm test:run
+
+      - name: Generate SBOM
+        run: |
+          npm install --package-lock-only --no-audit --no-fund
+          npx --yes @cyclonedx/cyclonedx-npm@latest --output-file sbom.json --spec-version 1.5 --package-lock-only
+          rm package-lock.json
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.json
+          retention-days: 90
