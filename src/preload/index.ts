@@ -80,6 +80,7 @@ const api = {
     ipcRenderer.invoke('fs:grep', pattern, path, options),
   bash: (command: string, options?: { cwd?: string; timeout?: number }) =>
     ipcRenderer.invoke('fs:bash', command, options),
+  killAllProcesses: () => ipcRenderer.invoke('process:killAll'),
 
   // Browser
   browserGetAvailableBrowsers: () => ipcRenderer.invoke('browser:getAvailableBrowsers'),
