@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron'
 import { getPermissionService } from '../database'
+import { auditLogService } from '../services/audit-log.service'
 import { secureHandler } from './ipc-security'
 
 export function registerPermissionHandlers(): void {
@@ -12,12 +13,27 @@ export function registerPermissionHandlers(): void {
   ipcMain.handle(
     'permissions:grant',
     secureHandler(async (_, path: string, operation: string, scope: string) => {
-      return permissionService.grant(path, operation, scope)
+      const result = await permissionService.grant(path, operation, scope)
+      auditLogService?.log({
+        actor: 'user',
+        action: 'permission:grant',
+        target: path,
+        result: 'success',
+        details: { operation, scope }
+      })
+      return result
     })
   )
 
   ipcMain.handle('permissions:revoke', secureHandler(async (_, path: string, operation: string) => {
-    return permissionService.revoke(path, operation)
+    await permissionService.revoke(path, operation)
+    auditLogService?.log({
+      actor: 'user',
+      action: 'permission:revoke',
+      target: path,
+      result: 'success',
+      details: { operation }
+    })
   }))
 
   ipcMain.handle('permissions:list', secureHandler(async () => {

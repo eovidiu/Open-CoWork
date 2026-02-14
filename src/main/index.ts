@@ -5,6 +5,7 @@ import { initDatabase, closeDatabase, getDatabase } from './database'
 import { registerIpcHandlers } from './ipc'
 import { setMainWindow } from './ipc/ipc-security'
 import { enforceContentSecurityPolicy } from './csp'
+import { initAuditLog } from './services/audit-log.service'
 
 /**
  * Security Note: TLS Certificate Pinning
@@ -187,6 +188,10 @@ app.whenReady().then(async () => {
 
   // Initialize database
   await initDatabase()
+
+  // Initialize audit logging
+  const auditDir = join(app.getPath('userData'), 'audit')
+  initAuditLog(auditDir)
 
   // Register IPC handlers
   registerIpcHandlers()

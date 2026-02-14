@@ -9,6 +9,7 @@ import { processTracker } from '../services/process-tracker'
 import { redactCredentials } from '../services/credential-scanner'
 import { scanForInjection } from '../services/injection-scanner'
 import { workspaceService } from '../services/workspace.service'
+import { auditLogService } from '../services/audit-log.service'
 import {
   validateArgs,
   fsPathSchema,
@@ -155,6 +156,12 @@ export function registerFileSystemHandlers(): void {
       throw new Error(`Content too large: exceeds ${(MAX_WRITE_SIZE / 1024 / 1024).toFixed(0)}MB write limit`)
     }
     await writeFile(validPath, validated.content, 'utf-8')
+    auditLogService?.log({
+      actor: 'agent',
+      action: 'file:write',
+      target: validPath,
+      result: 'success'
+    })
   }, moderateLimiter))
 
   ipcMain.handle('fs:readDirectory', secureHandler(async (_, path: unknown) => {
@@ -432,6 +439,13 @@ export function registerFileSystemHandlers(): void {
 
       child.on('close', (code) => {
         if (child.pid) processTracker.untrack(child.pid)
+        auditLogService?.log({
+          actor: 'agent',
+          action: 'tool:bash',
+          target: validated.command,
+          result: code === 0 ? 'success' : 'error',
+          details: { cwd, exitCode: code || 0 }
+        })
         resolve({
           stdout: redactCredentials(stdout || ''),
           stderr: redactCredentials(stderr || ''),
