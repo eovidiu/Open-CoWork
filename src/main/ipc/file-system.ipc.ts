@@ -7,6 +7,7 @@ import { secureHandler, createRateLimiter } from './ipc-security'
 import { getPermissionService } from '../database'
 import { processTracker } from '../services/process-tracker'
 import { redactCredentials } from '../services/credential-scanner'
+import { scanForInjection } from '../services/injection-scanner'
 
 // Sensitive paths that should never be accessed
 const SENSITIVE_PATHS = [
@@ -86,6 +87,11 @@ export function registerFileSystemHandlers(): void {
     }
     await checkFileSize(validPath, MAX_READ_SIZE)
     const content = await readFile(validPath, 'utf-8')
+    const scanResult = scanForInjection(content, validPath)
+    if (scanResult.hasInjection) {
+      console.warn(`[injection-scanner] Detected patterns in ${validPath}: ${scanResult.patterns.join(', ')}`)
+      return redactCredentials(scanResult.sanitized)
+    }
     return redactCredentials(content)
   }, moderateLimiter))
 
