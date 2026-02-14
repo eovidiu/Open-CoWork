@@ -44,15 +44,21 @@ export function useAvailableBrowsers() {
 export function useApiKey() {
   const queryClient = useQueryClient()
 
-  const { data: apiKey, isLoading } = useQuery({
+  const { data: hasApiKey, isLoading } = useQuery({
     queryKey: ['apiKey'],
-    queryFn: () => window.api.getApiKey()
+    queryFn: () => window.api.hasApiKey()
+  })
+
+  const { data: maskedKey } = useQuery({
+    queryKey: ['apiKeyMasked'],
+    queryFn: () => window.api.getApiKeyMasked()
   })
 
   const setApiKey = useMutation({
     mutationFn: (key: string) => window.api.setApiKey(key),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['apiKey'] })
+      queryClient.invalidateQueries({ queryKey: ['apiKeyMasked'] })
     }
   })
 
@@ -60,11 +66,13 @@ export function useApiKey() {
     mutationFn: () => window.api.deleteApiKey(),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['apiKey'] })
+      queryClient.invalidateQueries({ queryKey: ['apiKeyMasked'] })
     }
   })
 
   return {
-    apiKey,
+    hasApiKey: !!hasApiKey,
+    maskedKey,
     isLoading,
     setApiKey: setApiKey.mutate,
     deleteApiKey: deleteApiKey.mutate,

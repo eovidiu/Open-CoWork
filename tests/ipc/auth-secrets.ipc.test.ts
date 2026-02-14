@@ -120,8 +120,12 @@ describe('Auth Secrets IPC Handlers', () => {
       expect(registeredHandlers.has('settings:getApiKeyMasked')).toBe(true)
     })
 
-    it('should register the settings:getApiKey handler', () => {
-      expect(registeredHandlers.has('settings:getApiKey')).toBe(true)
+    it('should NOT register the settings:getApiKey handler (removed for security)', () => {
+      expect(registeredHandlers.has('settings:getApiKey')).toBe(false)
+    })
+
+    it('should register the settings:hasApiKey handler', () => {
+      expect(registeredHandlers.has('settings:hasApiKey')).toBe(true)
     })
 
     it('should register the settings:deleteApiKey handler', () => {
@@ -131,10 +135,12 @@ describe('Auth Secrets IPC Handlers', () => {
     it('should register all expected settings handlers', () => {
       expect(registeredHandlers.has('settings:get')).toBe(true)
       expect(registeredHandlers.has('settings:update')).toBe(true)
-      expect(registeredHandlers.has('settings:getApiKey')).toBe(true)
+      expect(registeredHandlers.has('settings:hasApiKey')).toBe(true)
       expect(registeredHandlers.has('settings:setApiKey')).toBe(true)
       expect(registeredHandlers.has('settings:deleteApiKey')).toBe(true)
       expect(registeredHandlers.has('settings:getApiKeyMasked')).toBe(true)
+      // getApiKey should NOT be registered (decrypted key stays in main process)
+      expect(registeredHandlers.has('settings:getApiKey')).toBe(false)
     })
   })
 
@@ -316,18 +322,18 @@ describe('Auth Secrets IPC Handlers', () => {
     })
   })
 
-  describe('settings:getApiKey - round trip', () => {
-    it('should store and retrieve the exact key value', async () => {
+  describe('settings:hasApiKey - existence check', () => {
+    it('should return true after storing a key', async () => {
       const testKey = 'sk-or-v1-abcdefghijklmnopqrstuvwxyz1234567890'
       await callHandler('settings:setApiKey', testKey)
 
-      const retrieved = await callHandler<string | null>('settings:getApiKey')
-      expect(retrieved).toBe(testKey)
+      const exists = await callHandler<boolean>('settings:hasApiKey')
+      expect(exists).toBe(true)
     })
 
-    it('should return null when no key is stored', async () => {
-      const retrieved = await callHandler<string | null>('settings:getApiKey')
-      expect(retrieved).toBeNull()
+    it('should return false when no key is stored', async () => {
+      const exists = await callHandler<boolean>('settings:hasApiKey')
+      expect(exists).toBe(false)
     })
   })
 
@@ -338,8 +344,8 @@ describe('Auth Secrets IPC Handlers', () => {
 
       await callHandler('settings:deleteApiKey')
 
-      const retrieved = await callHandler<string | null>('settings:getApiKey')
-      expect(retrieved).toBeNull()
+      const exists = await callHandler<boolean>('settings:hasApiKey')
+      expect(exists).toBe(false)
     })
 
     it('should not throw when deleting a non-existent key', async () => {

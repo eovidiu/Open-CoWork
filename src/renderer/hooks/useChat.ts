@@ -56,7 +56,7 @@ interface ConversationState {
 
 export function useChat() {
   const queryClient = useQueryClient()
-  const { apiKey } = useApiKey()
+  const { hasApiKey } = useApiKey()
   const { enabledSkills } = useSkills()
   const { setProcessing, markAsUnread, activeConversationId } = useUIStore()
   const { storeAttachments } = useAttachmentStore()
@@ -105,7 +105,7 @@ export function useChat() {
 
   const sendMessage = useCallback(
     async (content: string, conversationId: string, model: string, attachments?: Attachment[]) => {
-      if (!apiKey) {
+      if (!hasApiKey) {
         updateConversationState(conversationId, {
           error: 'API key not configured. Please set your OpenRouter API key in settings.'
         })
@@ -257,7 +257,7 @@ export function useChat() {
             content: m.content
           }))
 
-          const { summary, keptMessages } = await compactConversation(apiKey, stringMessages)
+          const { summary, keptMessages } = await compactConversation(stringMessages)
           conversationSummary = summary
 
           if (summary) {
@@ -308,7 +308,7 @@ export function useChat() {
         const toolCallsMap = new Map<string, ToolCall>()
 
         // Stream the response using the agent pattern
-        const client = createOpenRouterClient(apiKey)
+        const client = createOpenRouterClient()
         let assistantContent = ''
         let needsParagraphBreak = false // Track if we need a break after tool result
 
@@ -418,7 +418,7 @@ export function useChat() {
               content: m.content
             }))
 
-            const { summary, keptMessages } = await compactConversation(apiKey, stringMessages, 4)
+            const { summary, keptMessages } = await compactConversation(stringMessages, 4)
 
             if (summary) {
               // Rebuild with compacted history
@@ -514,7 +514,7 @@ export function useChat() {
       }
     },
     [
-      apiKey,
+      hasApiKey,
       enabledSkills,
       queryClient,
       setProcessing,

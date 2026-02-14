@@ -98,7 +98,8 @@ interface Api {
   }) => Promise<Settings>
 
   // Secure Storage
-  getApiKey: () => Promise<string | null>
+  hasApiKey: () => Promise<boolean>
+  getApiKeyMasked: () => Promise<{ exists: boolean; masked: string; length: number } | null>
   setApiKey: (key: string) => Promise<void>
   deleteApiKey: () => Promise<void>
 

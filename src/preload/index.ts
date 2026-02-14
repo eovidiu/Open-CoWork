@@ -64,7 +64,8 @@ const api = {
   }) => ipcRenderer.invoke('settings:update', data),
 
   // Secure Storage (API Key)
-  getApiKey: () => ipcRenderer.invoke('settings:getApiKey'),
+  hasApiKey: () => ipcRenderer.invoke('settings:hasApiKey'),
+  getApiKeyMasked: () => ipcRenderer.invoke('settings:getApiKeyMasked'),
   setApiKey: (key: string) => ipcRenderer.invoke('settings:setApiKey', key),
   deleteApiKey: () => ipcRenderer.invoke('settings:deleteApiKey'),
 

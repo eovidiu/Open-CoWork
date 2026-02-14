@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync, symlinkSync, existsSync } from 'fs'
+import { mkdtempSync, rmSync, writeFileSync, mkdirSync, symlinkSync, existsSync, realpathSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 
@@ -28,11 +28,24 @@ vi.mock('../../src/main/ipc/ipc-security', async () => {
   }
 })
 
+// Mock getPermissionService to always grant permissions in tests
+vi.mock('../../src/main/database', () => ({
+  getDatabase: () => ({}),
+  getPermissionService: () => ({
+    check: async () => ({ scope: 'always', path: 'test', operation: 'test' }),
+    grant: async () => ({}),
+    revoke: async () => {},
+    list: async () => [],
+    clearSession: () => {},
+    getSessionPermissions: () => new Map()
+  })
+}))
+
 // Temp directory for test files
 let tempDir: string
 
 beforeAll(async () => {
-  tempDir = mkdtempSync(join(tmpdir(), 'fs-access-test-'))
+  tempDir = realpathSync(mkdtempSync(join(tmpdir(), 'fs-access-test-')))
 
   // Initialize sender validation
   const { setMainWindow } = await import('../../src/main/ipc/ipc-security')

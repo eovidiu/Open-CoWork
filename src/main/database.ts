@@ -3,8 +3,10 @@ import { join } from 'path'
 import { PrismaClient } from '@prisma/client'
 import { existsSync, copyFileSync } from 'fs'
 import { chmod } from 'fs/promises'
+import { createPermissionService, type PermissionService } from './services/permission.service'
 
 let prisma: PrismaClient | null = null
+let permissionServiceInstance: PermissionService | null = null
 
 // Pre-installed skills for document handling
 const PRE_INSTALLED_SKILLS = [
@@ -469,9 +471,18 @@ export function getDatabase(): PrismaClient {
   return prisma
 }
 
+export function getPermissionService(): PermissionService {
+  if (!permissionServiceInstance) {
+    const db = getDatabase()
+    permissionServiceInstance = createPermissionService(db)
+  }
+  return permissionServiceInstance
+}
+
 export async function closeDatabase(): Promise<void> {
   if (prisma) {
     await prisma.$disconnect()
     prisma = null
   }
+  permissionServiceInstance = null
 }

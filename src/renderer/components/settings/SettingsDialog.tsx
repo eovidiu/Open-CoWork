@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Eye, EyeOff, Trash2, Globe, ChevronRight } from 'lucide-react'
+import { Trash2, Globe, ChevronRight } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -20,10 +20,9 @@ interface SettingsDialogProps {
 
 export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
   const { settings, updateSettings } = useSettings()
-  const { apiKey, setApiKey, deleteApiKey, isSettingKey } = useApiKey()
+  const { hasApiKey, maskedKey, setApiKey, deleteApiKey, isSettingKey } = useApiKey()
   const { browsers } = useAvailableBrowsers()
   const [newApiKey, setNewApiKey] = useState('')
-  const [showApiKey, setShowApiKey] = useState(false)
   const [showBrowserDialog, setShowBrowserDialog] = useState(false)
 
   const selectedBrowser = browsers.find((b) => b.id === settings?.preferredBrowser)
@@ -56,18 +55,11 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
           {/* API Key Section */}
           <div className="space-y-2">
             <label className="text-sm font-medium">OpenRouter API Key</label>
-            {apiKey ? (
+            {hasApiKey ? (
               <div className="flex items-center gap-2">
                 <div className="flex-1 rounded-md border bg-muted px-3 py-2 text-sm">
-                  {showApiKey ? apiKey : '••••••••••••••••'}
+                  {maskedKey?.masked || '••••••••••••••••'}
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setShowApiKey(!showApiKey)}
-                >
-                  {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </Button>
                 <Button variant="ghost" size="icon" onClick={handleDeleteApiKey}>
                   <Trash2 className="h-4 w-4 text-destructive" />
                 </Button>

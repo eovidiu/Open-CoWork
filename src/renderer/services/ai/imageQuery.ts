@@ -21,7 +21,6 @@ interface QueryImageResult {
  * Uses OpenRouter to send the image and prompt to a vision-capable model
  */
 export async function queryImage(
-  apiKey: string,
   conversationId: string,
   imageId: number,
   prompt: string
@@ -47,7 +46,7 @@ export async function queryImage(
     }
   }
 
-  const client = createOpenRouterClient(apiKey)
+  const client = createOpenRouterClient()
 
   // Try vision models in order until one works
   for (const modelId of VISION_MODELS) {
@@ -113,7 +112,6 @@ export async function queryImage(
  * Returns cached description if available, otherwise generates one
  */
 export async function getImageDescription(
-  apiKey: string,
   conversationId: string,
   imageId: number
 ): Promise<QueryImageResult> {
@@ -127,7 +125,6 @@ export async function getImageDescription(
 
   // Generate description
   return queryImage(
-    apiKey,
     conversationId,
     imageId,
     'Describe this image in detail. Include any visible text, UI elements, buttons, and important visual content.'

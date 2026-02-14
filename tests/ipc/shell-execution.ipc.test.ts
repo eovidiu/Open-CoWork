@@ -42,13 +42,21 @@ vi.mock('../../src/main/ipc/ipc-security', async () => {
   }
 })
 
-// Mock the database module (needed for settings.ipc.ts)
+// Mock the database module (needed for settings.ipc.ts and permission checks)
 vi.mock('../../src/main/database', () => ({
   getDatabase: () => ({
     settings: {
       findUnique: vi.fn().mockResolvedValue({ id: 'default', theme: 'system' }),
       upsert: vi.fn()
     }
+  }),
+  getPermissionService: () => ({
+    check: async () => ({ scope: 'always', path: 'test', operation: 'test' }),
+    grant: async () => ({}),
+    revoke: async () => {},
+    list: async () => [],
+    clearSession: () => {},
+    getSessionPermissions: () => new Map()
   })
 }))
 
@@ -107,9 +115,11 @@ describe('Shell Execution Security (Integration)', () => {
     it('should still register settings handlers (get, update, API key)', () => {
       expect(registeredHandlers.has('settings:get')).toBe(true)
       expect(registeredHandlers.has('settings:update')).toBe(true)
-      expect(registeredHandlers.has('settings:getApiKey')).toBe(true)
+      expect(registeredHandlers.has('settings:hasApiKey')).toBe(true)
       expect(registeredHandlers.has('settings:setApiKey')).toBe(true)
       expect(registeredHandlers.has('settings:deleteApiKey')).toBe(true)
+      // getApiKey removed -- decrypted key stays in main process
+      expect(registeredHandlers.has('settings:getApiKey')).toBe(false)
     })
   })
 

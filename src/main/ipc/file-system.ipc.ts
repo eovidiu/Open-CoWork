@@ -4,6 +4,7 @@ import { join, resolve } from 'path'
 import { spawn } from 'child_process'
 import fg from 'fast-glob'
 import { secureHandler, createRateLimiter } from './ipc-security'
+import { getPermissionService } from '../database'
 
 // Sensitive paths that should never be accessed
 const SENSITIVE_PATHS = [
@@ -76,6 +77,11 @@ export function registerFileSystemHandlers(): void {
 
   ipcMain.handle('fs:readFile', secureHandler(async (_, path: string) => {
     const validPath = await validatePath(path)
+    const permissionService = getPermissionService()
+    const perm = await permissionService.check(validPath, 'fs:readFile')
+    if (!perm) {
+      throw new Error(`Permission denied: fs:readFile on ${validPath}`)
+    }
     await checkFileSize(validPath, MAX_READ_SIZE)
     const content = await readFile(validPath, 'utf-8')
     return content
@@ -84,6 +90,11 @@ export function registerFileSystemHandlers(): void {
   // Read file as base64 (for binary files like images)
   ipcMain.handle('fs:readFileBase64', secureHandler(async (_, path: string) => {
     const validPath = await validatePath(path)
+    const permissionService = getPermissionService()
+    const perm = await permissionService.check(validPath, 'fs:readFile')
+    if (!perm) {
+      throw new Error(`Permission denied: fs:readFile on ${validPath}`)
+    }
     await checkFileSize(validPath, MAX_READ_SIZE)
     const buffer = await readFile(validPath)
     const base64 = buffer.toString('base64')
@@ -112,6 +123,11 @@ export function registerFileSystemHandlers(): void {
 
   ipcMain.handle('fs:writeFile', secureHandler(async (_, path: string, content: string) => {
     const validPath = await validatePath(path)
+    const permissionService = getPermissionService()
+    const perm = await permissionService.check(validPath, 'fs:writeFile')
+    if (!perm) {
+      throw new Error(`Permission denied: fs:writeFile on ${validPath}`)
+    }
     if (content.length > MAX_WRITE_SIZE) {
       throw new Error(`Content too large: exceeds ${(MAX_WRITE_SIZE / 1024 / 1024).toFixed(0)}MB write limit`)
     }
@@ -120,6 +136,11 @@ export function registerFileSystemHandlers(): void {
 
   ipcMain.handle('fs:readDirectory', secureHandler(async (_, path: string) => {
     const validPath = await validatePath(path)
+    const permissionService = getPermissionService()
+    const perm = await permissionService.check(validPath, 'fs:readDirectory')
+    if (!perm) {
+      throw new Error(`Permission denied: fs:readDirectory on ${validPath}`)
+    }
     const entries = await readdir(validPath, { withFileTypes: true })
     const results = await Promise.all(
       entries.map(async (entry) => {
@@ -150,6 +171,11 @@ export function registerFileSystemHandlers(): void {
   // Glob - find files matching a pattern
   ipcMain.handle('fs:glob', secureHandler(async (_, pattern: string, cwd?: string) => {
     const basePath = cwd ? await validatePath(cwd) : process.cwd()
+    const permissionService = getPermissionService()
+    const perm = await permissionService.check(basePath, 'fs:glob')
+    if (!perm) {
+      throw new Error(`Permission denied: fs:glob on ${basePath}`)
+    }
 
     // Block patterns that start at filesystem root
     if (pattern.startsWith('/') || pattern.startsWith('/*')) {
@@ -192,9 +218,14 @@ export function registerFileSystemHandlers(): void {
     const resolvedPath = resolve(searchPath)
 
     // Validate the search path
-    await validatePath(resolvedPath)
+    const validSearchPath = await validatePath(resolvedPath)
+    const permissionService = getPermissionService()
+    const perm = await permissionService.check(validSearchPath, 'fs:grep')
+    if (!perm) {
+      throw new Error(`Permission denied: fs:grep on ${validSearchPath}`)
+    }
 
-    const pathStat = await stat(resolvedPath).catch(() => null)
+    const pathStat = await stat(validSearchPath).catch(() => null)
 
     if (!pathStat) {
       throw new Error(`Path not found: ${searchPath}`)
@@ -215,7 +246,7 @@ export function registerFileSystemHandlers(): void {
     if (pathStat.isDirectory()) {
       // Find all text files in directory (returns strings when stats is false)
       filesToSearch = await fg(['**/*'], {
-        cwd: resolvedPath,
+        cwd: validSearchPath,
         onlyFiles: true,
         absolute: true,
         dot: false,
@@ -230,7 +261,7 @@ export function registerFileSystemHandlers(): void {
         ]
       })
     } else {
-      filesToSearch = [resolvedPath]
+      filesToSearch = [validSearchPath]
     }
 
     // Search each file
@@ -277,6 +308,12 @@ export function registerFileSystemHandlers(): void {
     } catch (error) {
       if (error instanceof Error && error.message.startsWith('CWD is not')) throw error
       throw new Error(`Invalid CWD: ${cwd} - ${error instanceof Error ? error.message : 'does not exist'}`)
+    }
+
+    const permissionService = getPermissionService()
+    const perm = await permissionService.check(cwd, 'fs:bash')
+    if (!perm) {
+      throw new Error(`Permission denied: fs:bash in ${cwd}`)
     }
 
     // Block command substitution — cannot be statically validated

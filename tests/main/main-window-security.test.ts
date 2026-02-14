@@ -42,7 +42,10 @@ let whenReadyCallback: (() => Promise<void>) | null = null
 const mockPermissionRequestHandler = vi.fn()
 const mockSession = {
   defaultSession: {
-    setPermissionRequestHandler: mockPermissionRequestHandler
+    setPermissionRequestHandler: mockPermissionRequestHandler,
+    webRequest: {
+      onBeforeSendHeaders: vi.fn()
+    }
   }
 }
 
@@ -100,7 +103,25 @@ vi.mock('@electron-toolkit/utils', () => ({
 // Mock the database module so we don't need a real DB
 vi.mock('../../src/main/database', () => ({
   initDatabase: vi.fn(async () => {}),
-  closeDatabase: vi.fn()
+  closeDatabase: vi.fn(),
+  getDatabase: vi.fn(() => ({}))
+}))
+
+// Mock settings.ipc for the webRequest interceptor
+vi.mock('../../src/main/ipc/settings.ipc', () => ({
+  createElectronSecureStorage: vi.fn(() => ({
+    isAvailable: () => false,
+    get: async () => null,
+    set: async () => {},
+    delete: async () => {}
+  }))
+}))
+
+// Mock settings.service for the webRequest interceptor
+vi.mock('../../src/main/services/settings.service', () => ({
+  createSettingsService: vi.fn(() => ({
+    getApiKey: async () => null
+  }))
 }))
 
 // Mock the IPC registration module

@@ -1,7 +1,7 @@
 import { app, shell, BrowserWindow, Menu, ipcMain, session } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
-import { initDatabase, closeDatabase } from './database'
+import { initDatabase, closeDatabase, getDatabase } from './database'
 import { registerIpcHandlers } from './ipc'
 import { setMainWindow } from './ipc/ipc-security'
 
@@ -186,6 +186,28 @@ app.whenReady().then(async () => {
 
   // Register IPC handlers
   registerIpcHandlers()
+
+  // Inject API key at the network level for OpenRouter requests.
+  // This prevents the decrypted key from ever reaching the renderer process.
+  const { createElectronSecureStorage } = await import('./ipc/settings.ipc')
+  const { createSettingsService } = await import('./services/settings.service')
+  const secureStorage = createElectronSecureStorage()
+  const settingsService = createSettingsService(getDatabase(), secureStorage)
+
+  session.defaultSession.webRequest.onBeforeSendHeaders(
+    { urls: ['https://openrouter.ai/*'] },
+    async (details, callback) => {
+      try {
+        const apiKey = await settingsService.getApiKey()
+        if (apiKey) {
+          details.requestHeaders['Authorization'] = `Bearer ${apiKey}`
+        }
+      } catch (error) {
+        console.error('[webRequest] Failed to inject API key:', error)
+      }
+      callback({ requestHeaders: details.requestHeaders })
+    }
+  )
 
   const mainWindow = createWindow()
 

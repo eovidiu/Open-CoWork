@@ -146,13 +146,8 @@ export function ChatArea({ className }: ChatAreaProps) {
       // Generate proper title in background
       ;(async () => {
         try {
-          const apiKey = await window.api.getApiKey()
-          if (!apiKey) {
-            console.log('[Title Generation] No API key, skipping title generation')
-            return
-          }
           console.log(`[Title Generation] Generating title for conversation ${conversationIdForTitle}`)
-          const generatedTitle = await generateConversationTitle(apiKey, messageContent)
+          const generatedTitle = await generateConversationTitle(messageContent)
           console.log(`[Title Generation] Generated: "${generatedTitle}", updating conversation...`)
           updateConversation({ id: conversationIdForTitle, data: { title: generatedTitle } })
           console.log(`[Title Generation] Update sent for conversation ${conversationIdForTitle}`)

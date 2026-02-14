@@ -85,10 +85,18 @@ vi.mock('../../src/main/ipc/ipc-security', async () => {
   }
 })
 
-// Mock the database module to use our test database
+// Mock the database module to use our test database and always-grant permission service
 let testPrisma: PrismaClient
 vi.mock('../../src/main/database', () => ({
-  getDatabase: () => testPrisma
+  getDatabase: () => testPrisma,
+  getPermissionService: () => ({
+    check: async () => ({ scope: 'always', path: 'test', operation: 'test' }),
+    grant: async () => ({}),
+    revoke: async () => {},
+    list: async () => [],
+    clearSession: () => {},
+    getSessionPermissions: () => new Map()
+  })
 }))
 
 // Mock fs.existsSync to return false for browser data dirs

@@ -72,19 +72,21 @@ export function isContextTooLargeError(error: unknown): boolean {
   return false
 }
 
-export function createOpenRouterClient(apiKey: string) {
+export function createOpenRouterClient(apiKey?: string) {
   return createOpenAI({
-    apiKey,
+    // The actual API key is injected at the network level by the main process
+    // via session.webRequest.onBeforeSendHeaders. The placeholder satisfies the
+    // SDK's requirement for a non-empty string.
+    apiKey: apiKey || '__injected_by_main__',
     baseURL: 'https://openrouter.ai/api/v1'
   })
 }
 
 // Generate a short title for a conversation based on the first message
 export async function generateConversationTitle(
-  apiKey: string,
   userMessage: string
 ): Promise<string> {
-  const client = createOpenRouterClient(apiKey)
+  const client = createOpenRouterClient()
 
   // Try multiple models in order of preference (fast & cheap)
   // Using correct OpenRouter model IDs - prioritize reliable, fast models
@@ -139,7 +141,6 @@ export async function generateConversationTitle(
 // Compact/summarize conversation history to reduce token count
 // Keeps the last N messages intact and summarizes the rest
 export async function compactConversation(
-  apiKey: string,
   messages: Array<{ role: string; content: string }>,
   keepLastN: number = 6
 ): Promise<{ summary: string; keptMessages: Array<{ role: string; content: string }> }> {
@@ -154,7 +155,7 @@ export async function compactConversation(
 
   console.log(`[Compaction] Summarizing ${messagesToSummarize.length} messages, keeping ${keptMessages.length}`)
 
-  const client = createOpenRouterClient(apiKey)
+  const client = createOpenRouterClient()
 
   // Build a text representation of the conversation to summarize
   const conversationText = messagesToSummarize

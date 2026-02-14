@@ -8,7 +8,7 @@ import type { UpdateSettingsInput } from '../../shared/types'
 import { secureHandler } from './ipc-security'
 
 // Electron-specific secure storage implementation
-function createElectronSecureStorage(): SecureStorageBackend {
+export function createElectronSecureStorage(): SecureStorageBackend {
   const getKeyPath = async () => {
     const path = await import('path')
     return path.join(app.getPath('userData'), '.api-key')
@@ -65,9 +65,8 @@ export function registerSettingsHandlers(): void {
   }))
 
   // Secure storage for API key
-  ipcMain.handle('settings:getApiKey', secureHandler(async () => {
-    return settingsService.getApiKey()
-  }))
+  // Note: getApiKey handler removed -- the decrypted key never leaves the main process.
+  // The key is injected into OpenRouter requests via session.webRequest.onBeforeSendHeaders.
 
   ipcMain.handle('settings:setApiKey', secureHandler(async (_, key: string) => {
     // Validate API key format
@@ -86,6 +85,12 @@ export function registerSettingsHandlers(): void {
 
   ipcMain.handle('settings:deleteApiKey', secureHandler(async () => {
     return settingsService.deleteApiKey()
+  }))
+
+  // Check if API key exists without exposing its value
+  ipcMain.handle('settings:hasApiKey', secureHandler(async () => {
+    const key = await settingsService.getApiKey()
+    return !!key
   }))
 
   // Return masked API key for UI display (avoids exposing full key to renderer)

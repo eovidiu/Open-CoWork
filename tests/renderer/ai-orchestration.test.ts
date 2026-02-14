@@ -369,7 +369,7 @@ describe('Compaction safety', () => {
     ]
 
     const { compactConversation } = await import('../../src/renderer/services/ai/openrouter')
-    const result = await compactConversation('fake-key', messages, 6)
+    const result = await compactConversation(messages, 6)
     expect(result.summary).toBe('')
     expect(result.keptMessages).toEqual(messages)
     // generateText should not have been called

@@ -18,11 +18,6 @@ function getActiveConversationId(): string | null {
   return useUIStore.getState().activeConversationId
 }
 
-// Helper to get API key
-async function getApiKey(): Promise<string | null> {
-  return await window.api.getApiKey()
-}
-
 // Helper to save a screenshot to the image registry
 async function saveScreenshotToRegistry(
   base64Data: string,
@@ -272,17 +267,8 @@ You can query the same image multiple times with different questions.`,
         }
       }
 
-      const apiKey = await getApiKey()
-      if (!apiKey) {
-        return {
-          error: true,
-          message: 'No API key configured',
-          suggestion: 'Please set your OpenRouter API key in settings.'
-        }
-      }
-
       try {
-        const result = await queryImageService(apiKey, conversationId, imageId, prompt)
+        const result = await queryImageService(conversationId, imageId, prompt)
 
         if (!result.success) {
           return {

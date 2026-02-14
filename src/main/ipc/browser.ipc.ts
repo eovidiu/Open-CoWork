@@ -2,7 +2,7 @@ import { ipcMain, app } from 'electron'
 import { join } from 'path'
 import { platform } from 'os'
 import { existsSync } from 'fs'
-import { getDatabase } from '../database'
+import { getDatabase, getPermissionService } from '../database'
 import { secureHandler, createRateLimiter } from './ipc-security'
 
 // Types from playwright (imported dynamically)
@@ -294,6 +294,11 @@ export function registerBrowserHandlers(): void {
       const urlCheck = validateBrowserUrl(url)
       if (!urlCheck.valid) {
         return { error: true, message: urlCheck.error }
+      }
+      const permissionService = getPermissionService()
+      const perm = await permissionService.check(url, 'browser:navigate')
+      if (!perm) {
+        return { error: true, message: `Permission denied: browser:navigate to ${url}` }
       }
       await p.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 })
 
@@ -602,6 +607,11 @@ export function registerBrowserHandlers(): void {
       const urlCheck = validateBrowserUrl(url)
       if (!urlCheck.valid) {
         return { error: true, message: urlCheck.error }
+      }
+      const permissionService = getPermissionService()
+      const perm = await permissionService.check(url, 'browser:navigate')
+      if (!perm) {
+        return { error: true, message: `Permission denied: browser:navigate to ${url}` }
       }
       await p.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 })
 

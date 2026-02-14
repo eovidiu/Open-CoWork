@@ -1,11 +1,9 @@
 import { ipcMain } from 'electron'
-import { getDatabase } from '../database'
-import { createPermissionService } from '../services/permission.service'
+import { getPermissionService } from '../database'
 import { secureHandler } from './ipc-security'
 
 export function registerPermissionHandlers(): void {
-  const prisma = getDatabase()
-  const permissionService = createPermissionService(prisma)
+  const permissionService = getPermissionService()
 
   ipcMain.handle('permissions:check', secureHandler(async (_, path: string, operation: string) => {
     return permissionService.check(path, operation)

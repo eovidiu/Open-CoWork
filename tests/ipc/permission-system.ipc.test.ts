@@ -41,6 +41,19 @@ vi.mock('electron', () => ({
   }
 }))
 
+// Mock getPermissionService to always grant permissions (needed by file-system.ipc.ts)
+vi.mock('../../src/main/database', () => ({
+  getDatabase: () => ({}),
+  getPermissionService: () => ({
+    check: async () => ({ scope: 'always', path: 'test', operation: 'test' }),
+    grant: async () => ({}),
+    revoke: async () => {},
+    list: async () => [],
+    clearSession: () => {},
+    getSessionPermissions: () => new Map()
+  })
+}))
+
 // Mock IPC event with valid sender
 const mockEvent = { sender: { id: 1 } }
 

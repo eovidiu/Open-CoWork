@@ -88,8 +88,18 @@ export const mockApi = {
   },
 
   // API Key
-  getApiKey: async (): Promise<string | null> => {
-    return localStorage.getItem(STORAGE_KEYS.apiKey)
+  hasApiKey: async (): Promise<boolean> => {
+    return !!localStorage.getItem(STORAGE_KEYS.apiKey)
+  },
+
+  getApiKeyMasked: async (): Promise<{ exists: boolean; masked: string; length: number } | null> => {
+    const key = localStorage.getItem(STORAGE_KEYS.apiKey)
+    if (!key) return null
+    return {
+      exists: true,
+      masked: '••••••••' + key.slice(-4),
+      length: key.length
+    }
   },
 
   setApiKey: async (key: string): Promise<void> => {
