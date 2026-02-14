@@ -421,9 +421,9 @@ describe('Shell Execution Security (Integration)', () => {
 
   describe('allowlist completeness', () => {
     const expectedAllowlist = [
-      'ls', 'cat', 'head', 'tail', 'wc', 'sort', 'uniq', 'find', 'grep', 'awk', 'sed',
+      'ls', 'cat', 'head', 'tail', 'wc', 'sort', 'uniq', 'find', 'grep', 'sed',
       'echo', 'pwd', 'whoami', 'date', 'which', 'file', 'diff', 'git',
-      'npm', 'pnpm', 'pip', 'pip3', 'tar', 'gzip',
+      'npm', 'pnpm', 'tar', 'gzip',
       'gunzip', 'zip', 'unzip', 'mkdir', 'cp', 'mv', 'touch', 'chmod', 'tee', 'xargs'
     ]
 
@@ -448,7 +448,7 @@ describe('Shell Execution Security (Integration)', () => {
       'service', 'crontab', 'at', 'useradd', 'userdel', 'passwd',
       'iptables', 'open', 'osascript', 'pbcopy', 'pbpaste',
       'sh', 'bash', 'zsh', 'python', 'python3', 'node', 'npx', 'env',
-      'curl', 'wget'
+      'curl', 'wget', 'awk', 'pip', 'pip3'
     ]
 
     it.each(
@@ -457,6 +457,53 @@ describe('Shell Execution Security (Integration)', () => {
       await expect(
         callHandler<BashResult>('fs:bash', `${cmd} --help`, { cwd: tempDir })
       ).rejects.toThrow(/Command blocked for security/)
+    })
+  })
+
+  // ─── Blocked argument patterns ──────────────────────────────────────
+
+  describe('blocked argument patterns', () => {
+    const blockedArgCombinations = [
+      ['find', 'find . -exec rm {} \\;', '-exec enables arbitrary command execution'],
+      ['find', 'find . -execdir cat {} +', '-execdir enables arbitrary command execution'],
+      ['find', 'find . -delete', '-delete can remove files'],
+      ['sed', "echo foo | sed 's/.*/id/e'", 'e flag executes pattern space as shell command'],
+      ['git', 'git -c core.pager=malicious log', '-c can set arbitrary config including pager'],
+      ['npm', 'npm exec -- ls', 'exec runs arbitrary commands'],
+      ['npm', 'npm run-script test', 'run-script can execute arbitrary lifecycle scripts'],
+      ['pnpm', 'pnpm exec ls', 'exec runs arbitrary commands'],
+      ['pnpm', 'pnpm dlx some-package', 'dlx downloads and runs arbitrary packages'],
+    ]
+
+    it.each(
+      blockedArgCombinations.map(([cmd, command, reason]) => [cmd, command, reason])
+    )('should block %s with dangerous args: %s', async (_cmd, command, _reason) => {
+      await expect(
+        callHandler<BashResult>('fs:bash', command as string, { cwd: tempDir })
+      ).rejects.toThrow(/Command blocked for security/)
+    })
+
+    it('should still allow find without -exec', async () => {
+      const result = await callHandler<BashResult>('fs:bash', 'find . -name "*.txt"', { cwd: tempDir })
+      expect(result.exitCode).toBe(0)
+    })
+
+    it('should still allow git without -c', async () => {
+      try {
+        await callHandler<BashResult>('fs:bash', 'git status', { cwd: tempDir })
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error)
+        expect(msg).not.toContain('Command blocked for security')
+      }
+    })
+
+    it('should still allow npm without exec', async () => {
+      try {
+        await callHandler<BashResult>('fs:bash', 'npm --version', { cwd: tempDir })
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error)
+        expect(msg).not.toContain('Command blocked for security')
+      }
     })
   })
 

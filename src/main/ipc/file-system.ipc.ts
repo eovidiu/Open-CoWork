@@ -54,11 +54,20 @@ async function checkFileSize(filePath: string, maxSize: number): Promise<void> {
 
 // Allowlist of permitted executables for bash commands
 const ALLOWED_EXECUTABLES = [
-  'ls', 'cat', 'head', 'tail', 'wc', 'sort', 'uniq', 'find', 'grep', 'awk', 'sed',
+  'ls', 'cat', 'head', 'tail', 'wc', 'sort', 'uniq', 'find', 'grep', 'sed',
   'echo', 'pwd', 'whoami', 'date', 'which', 'file', 'diff', 'git',
-  'npm', 'pnpm', 'pip', 'pip3', 'tar', 'gzip',
+  'npm', 'pnpm', 'tar', 'gzip',
   'gunzip', 'zip', 'unzip', 'mkdir', 'cp', 'mv', 'touch', 'chmod', 'tee', 'xargs'
 ]
+
+// Arguments that allow specific executables to bypass the allowlist (matched per-token)
+const BLOCKED_ARGUMENTS: Record<string, RegExp[]> = {
+  find: [/^-exec$/, /^-execdir$/, /^-delete$/],
+  sed: [/\/e['"]?$/, /\/e\b/],
+  git: [/^-c$/],
+  npm: [/^exec$/, /^run-script$/],
+  pnpm: [/^exec$/, /^dlx$/]
+}
 
 export function registerFileSystemHandlers(): void {
   // Rate limiters
@@ -130,8 +139,8 @@ export function registerFileSystemHandlers(): void {
 
   ipcMain.handle('fs:exists', secureHandler(async (_, path: string) => {
     try {
-      await validatePath(path)
-      await access(path)
+      const validPath = await validatePath(path)
+      await access(validPath)
       return true
     } catch {
       return false
@@ -140,7 +149,7 @@ export function registerFileSystemHandlers(): void {
 
   // Glob - find files matching a pattern
   ipcMain.handle('fs:glob', secureHandler(async (_, pattern: string, cwd?: string) => {
-    const basePath = cwd || process.cwd()
+    const basePath = cwd ? await validatePath(cwd) : process.cwd()
 
     // Block patterns that start at filesystem root
     if (pattern.startsWith('/') || pattern.startsWith('/*')) {
@@ -256,16 +265,17 @@ export function registerFileSystemHandlers(): void {
 
   // Bash - execute shell commands (with allowlist validation)
   ipcMain.handle('fs:bash', secureHandler(async (_, command: string, options?: { cwd?: string; timeout?: number }) => {
-    const cwd = options?.cwd || process.cwd()
     const timeout = options?.timeout || 30000 // 30 second default timeout
 
-    // Validate CWD exists and is a directory
+    // Validate CWD against sensitive paths, then check it exists and is a directory
+    const cwd = options?.cwd ? await validatePath(options.cwd) : process.cwd()
     try {
       const cwdStat = await stat(cwd)
       if (!cwdStat.isDirectory()) {
         throw new Error(`CWD is not a directory: ${cwd}`)
       }
     } catch (error) {
+      if (error instanceof Error && error.message.startsWith('CWD is not')) throw error
       throw new Error(`Invalid CWD: ${cwd} - ${error instanceof Error ? error.message : 'does not exist'}`)
     }
 
@@ -301,6 +311,23 @@ export function registerFileSystemHandlers(): void {
           `Command blocked for security: "${programName}" is not in the allowlist. ` +
           `Allowed executables: ${ALLOWED_EXECUTABLES.join(', ')}`
         )
+      }
+
+      // Check for blocked arguments on specific executables
+      const blockedPatterns = BLOCKED_ARGUMENTS[programName]
+      if (blockedPatterns) {
+        const args = withoutEnvVars.substring(programMatch[0].length).trim()
+        const argTokens = args.split(/\s+/).filter(Boolean)
+        for (const pattern of blockedPatterns) {
+          for (const token of argTokens) {
+            if (pattern.test(token)) {
+              throw new Error(
+                `Command blocked for security: "${programName}" with blocked argument pattern. ` +
+                `This argument combination is not allowed.`
+              )
+            }
+          }
+        }
       }
     }
 
