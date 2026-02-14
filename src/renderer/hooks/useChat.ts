@@ -156,6 +156,20 @@ export function useChat() {
           }
         }
 
+        // Scan for PII before sending to the API (detection only — log, don't block)
+        try {
+          const piiResult = await window.api.scanForPii(messageContent)
+          if (piiResult.hasPii) {
+            const types = [...new Set(piiResult.matches.map((m) => m.type))]
+            console.warn(
+              `[PII] Detected PII in message before API call: ${types.join(', ')} (${piiResult.matches.length} match${piiResult.matches.length === 1 ? '' : 'es'})`
+            )
+          }
+        } catch (piiError) {
+          // PII scanning is non-critical — never block the chat flow
+          console.error('[PII] Scanner error (non-blocking):', piiError)
+        }
+
         // Save user message to database
         await window.api.createMessage({
           conversationId,
