@@ -155,3 +155,49 @@ Agent: Orchestrator + 1 coding agent
 - 648 tests currently passing across 21 test files
 
 ---
+
+## Session 5: P1 Batch (F008-F011, F013-F016)
+Date: 2026-02-15
+Agent: Orchestrator + parallel coding agents (5 in Wave 1, 3 in Wave 2)
+
+### Worked On (8 features in parallel waves):
+
+**Wave 1 (5 parallel agents):**
+- F013: Update electron-updater 6.1.7→6.7.3 (CVE-2024-39698)
+- F014: Add two-tier pnpm audit to CI pipeline
+- F009: Credential pattern scanner (10 patterns, wired into readFile + bash)
+- F010: Process group kill on stop (ProcessTracker, SIGTERM→SIGKILL)
+- F011: Prompt injection scanner (6 categories, wired into readFile)
+
+**Wave 2 (3 parallel agents):**
+- F015: Zod runtime IPC argument validation (14 high-risk handlers)
+- F016: CSP unsafe-inline removal (main process headers, dev-only exception)
+- F008: Privacy policy / data processing notice (blocking modal, Settings DB)
+
+### All Completed:
+- F008: PrivacyNotice (blocking) + PrivacyPolicy, acceptance in Settings DB, accessible from Settings dialog
+- F009: 10 credential regex patterns, redactCredentials() on readFile + bash output. 43 tests.
+- F010: ProcessTracker with process group kill (POSIX -pid, Windows fallback). 18 tests.
+- F011: 6 injection categories (role override, prompt override, tool call, delimiter, base64, unicode). 73 tests.
+- F013: electron-updater 6.7.3, CVE-2024-39698 resolved
+- F014: CI audit: high warns, critical fails build
+- F015: Zod schemas on 14 IPC handlers (8 fs, 5 browser, 1 settings). 42 tests.
+- F016: CSP via main process HTTP headers, unsafe-inline removed in production, fontFamily→font-mono
+
+### Git Commits:
+- 6572e46: security: implement F014
+- 0c9c3fc: security: implement F013
+- c438ad0: security: implement F009
+- f8cb70d: security: implement F010
+- 79d4695: security: implement F011
+- 1692c1d: security: implement F015
+- 15f748c: security: implement F016
+- 128d2b1: security: implement F008
+
+### For Next Agent:
+- F017 (workspace boundary) in progress
+- F007 (code signing) blocked on certificates from Ovidiu
+- After F017: P2 items (F018-F026)
+- 832 tests currently passing across 25 test files
+
+---

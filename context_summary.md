@@ -1,16 +1,16 @@
 # Context Summary
 
 ## Active Context
-- Currently working on: P0 security remediation complete (7/7: F001-F006, F012). F007 (code signing) blocked on certs.
+- Currently working on: P1 nearly complete (8/10 P1 done: F008-F011, F013-F016). F017 in progress. All 7 P0 done.
 - Blocking issues: F007 (code signing — needs certificates from Ovidiu)
-- Next up: P1 items (F008-F017)
+- Next up: F017 (workspace boundary), then P2 items (F018-F026)
 
 ## Cross-Cutting Concerns
 - This is an Electron app that executes shell commands and accesses the file system on behalf of an AI — security is the dominant concern
 - Specification completeness is ~25% — most behavior is implicit in code
 - No tests exist for renderer, E2E, or security paths
-- **35 unique security FAIL findings** remaining (42 from analysis minus 7 resolved: F001, F002, F003, F004, F005, F006, F012)
-- 648 tests passing across 21 test files (up from 605 at baseline)
+- **27 unique security FAIL findings** remaining (42 from analysis minus 15 resolved)
+- 832 tests passing across 25 test files (up from 605 at baseline)
 
 ## Domain: Open CoWork
 
@@ -47,7 +47,7 @@
 1. No code signing or notarization — critical (F007, blocked on certs)
 2. No credential detection/redaction in tool outputs — high (F009)
 3. No audit logging — high (F019)
-4. No privacy policy — high, compliance (F008)
+4. ~~No privacy policy~~ — F008: PrivacyNotice (blocking first-launch) + PrivacyPolicy (Settings) implemented
 
 ### Gotchas
 - CLAUDE.md now exists in the repo (was missing at 2026-02-10)
@@ -67,15 +67,15 @@
 7. Code signing + notarization
 
 **P1 — Before public release:**
-8. Privacy policy/data processing notice
+8. ~~Privacy policy/data processing notice~~ → F008: PrivacyNotice + PrivacyPolicy components, privacyAccepted in Settings DB
 9. Credential pattern scanner on outputs
-10. Process group kill on stop
-11. File content injection sanitization
+10. ~~Process group kill on stop~~ → F010: ProcessTracker service + IPC handler + preload wiring
+11. ~~File content injection sanitization~~ → F011: injection-scanner.ts service, 73 tests, wired into fs:readFile
 12. Fix fs:exists to use validatePath
 13. Update electron-updater >= 6.3.0
 14. Add pnpm audit to CI
 15. Runtime IPC argument validation (Zod)
-16. Remove unsafe-inline from style-src
+16. ~~Remove unsafe-inline from style-src~~ → F016: CSP moved to main process HTTP headers, 'unsafe-inline' removed in production
 17. Workspace boundary for file ops
 
 **P2 — Medium-term:**

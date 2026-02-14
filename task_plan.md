@@ -1,57 +1,31 @@
-# Task Plan: F003 — Configure Electron Fuses
+# Task Plan: F016 - Remove 'unsafe-inline' from style-src in CSP
 
 ## Goal
-Flip Electron fuses on the packaged binary to disable dangerous capabilities (RunAsNode, NodeOptions, CLI inspect) and enable ASAR-only loading.
+Remove `'unsafe-inline'` from the `style-src` directive in the Content Security Policy, or implement a nonce-based approach if inline styles cannot be eliminated.
 
 ## Phases
-- [ ] Phase 1: Install `@electron/fuses` as devDependency
-- [ ] Phase 2: Create `scripts/set-electron-fuses.js` afterPack script
-- [ ] Phase 3: Wire afterPack into electron-builder.yml
-- [ ] Phase 4: Add build-time test that verifies fuses are set
-- [ ] Phase 5: Test on macOS build, verify, commit
-
-## Implementation Details
-
-### Fuses to set (FuseV1Options):
-| Fuse | Value | Why |
-|------|-------|-----|
-| RunAsNode | false | Prevents ELECTRON_RUN_AS_NODE TCC bypass on macOS |
-| EnableNodeOptionsEnvironmentVariable | false | Prevents NODE_OPTIONS injection |
-| EnableNodeCliInspectArguments | false | Prevents --inspect debugging in prod |
-| OnlyLoadAppFromAsar | true | Prevents loading code outside ASAR |
-| EnableEmbeddedAsarIntegrityValidation | true | Validates ASAR integrity at runtime |
-| GrantFileProtocolExtraPrivileges | false | Removes extra file:// privileges |
-
-### Script approach:
-- electron-builder `afterPack` hook receives `context` with `appOutDir` and `packager`
-- Script resolves the Electron binary path from `appOutDir`
-- Calls `flipFuses()` with the binary path and fuse settings
-- Platform-aware binary path resolution:
-  - macOS: `${appOutDir}/${productName}.app/Contents/Frameworks/Electron Framework.framework/Versions/A/Electron Framework`
-  - Actually, `flipFuses` accepts the app path directly (e.g., `Foo.app`) and handles framework resolution
-  - Windows: `${appOutDir}/${productName}.exe`
-  - Linux: `${appOutDir}/${productName}`
-
-### Constraint — OnlyLoadAppFromAsar:
-- The app uses `asarUnpack` for Prisma and better-sqlite3 native modules
-- `OnlyLoadAppFromAsar` means app **code** loads from ASAR only
-- Native modules in `app.asar.unpacked` are still accessible via Node's module system
-- This should be fine — the fuse only affects the initial app code load path
-
-### Constraint — EnableEmbeddedAsarIntegrityValidation:
-- Requires electron-builder to generate integrity hashes
-- electron-builder 24.x supports this via the `asar` config with `integrity` option
-- May need `electronDist` configuration — will test and verify
+- [x] Phase 1: Audit inline style usage in renderer
+- [x] Phase 2: Determine approach (A, B, or C)
+- [x] Phase 3: Implement the chosen approach
+- [x] Phase 4: Test and verify
+- [x] Phase 5: Report findings
 
 ## Key Questions
-1. Does `OnlyLoadAppFromAsar` break Prisma's unpacked native modules? → Should be safe, unpacked modules are still loadable
-2. Does ASAR integrity work with electron-builder 24.x? → May need to skip if it requires newer builder
+1. How many inline styles exist in JSX components? → 6 locations (3 fontFamily, 2 virtualizer, 1 textarea resize)
+2. Do Radix UI / shadcn components inject dynamic inline styles? → Yes, but via JS (element.style) which is script-src, not style-src
+3. Can all inline styles be converted to Tailwind classes? → fontFamily ones yes; virtualizer ones use dynamic values but are JS-applied (not affected by style-src)
+4. Is a nonce-based approach needed? → No. CSP style-src only controls <style> elements and HTML style attributes, not JS-applied styles
 
 ## Decisions Made
-- (pending)
+- Moved CSP from HTML meta tag to main process HTTP headers via onHeadersReceived (authoritative control)
+- In production: 'unsafe-inline' removed from style-src (CSS extracted to files by Vite)
+- In development: 'unsafe-inline' kept for style-src (Vite HMR injects <style> tags)
+- Created separate csp.ts module to keep index.ts clean and allow independent testing
+- Added "Space Mono" to Tailwind mono font family, replaced 3 inline fontFamily styles with font-mono class
+- Virtualizer and textarea inline styles left as-is (they use JS element.style, not affected by style-src)
 
 ## Errors Encountered
-- (none yet)
+- main-window-security.test.ts mock lacked onHeadersReceived → added typeof guard in csp.ts
 
 ## Status
-**Currently in Phase 1** — Plan created, awaiting approval
+**Complete** — All phases done. Not committed per instructions.
