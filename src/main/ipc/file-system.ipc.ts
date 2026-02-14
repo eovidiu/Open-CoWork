@@ -5,6 +5,8 @@ import { spawn } from 'child_process'
 import fg from 'fast-glob'
 import { secureHandler, createRateLimiter } from './ipc-security'
 import { getPermissionService } from '../database'
+import { processTracker } from '../services/process-tracker'
+import { redactCredentials } from '../services/credential-scanner'
 
 // Sensitive paths that should never be accessed
 const SENSITIVE_PATHS = [
@@ -84,7 +86,7 @@ export function registerFileSystemHandlers(): void {
     }
     await checkFileSize(validPath, MAX_READ_SIZE)
     const content = await readFile(validPath, 'utf-8')
-    return content
+    return redactCredentials(content)
   }, moderateLimiter))
 
   // Read file as base64 (for binary files like images)
@@ -373,8 +375,14 @@ export function registerFileSystemHandlers(): void {
       const child = spawn('sh', ['-c', command], {
         cwd,
         shell: false, // We're explicitly using sh, no need for additional shell
-        timeout
+        timeout,
+        detached: process.platform !== 'win32' // Own process group for POSIX group kill
       })
+
+      // Track the child process so killAll can terminate it on abort
+      if (child.pid) {
+        processTracker.track(child.pid, command)
+      }
 
       let stdout = ''
       let stderr = ''
@@ -388,13 +396,15 @@ export function registerFileSystemHandlers(): void {
       })
 
       child.on('error', (error) => {
+        if (child.pid) processTracker.untrack(child.pid)
         reject(new Error(`Failed to execute command: ${error.message}`))
       })
 
       child.on('close', (code) => {
+        if (child.pid) processTracker.untrack(child.pid)
         resolve({
-          stdout: stdout || '',
-          stderr: stderr || '',
+          stdout: redactCredentials(stdout || ''),
+          stderr: redactCredentials(stderr || ''),
           exitCode: code || 0
         })
       })
@@ -410,6 +420,11 @@ export function registerFileSystemHandlers(): void {
       })
     })
   }, expensiveLimiter))
+
+  // Kill all tracked child processes (used when user aborts)
+  ipcMain.handle('process:killAll', secureHandler(async () => {
+    return processTracker.killAll()
+  }))
 
   // Dialog handlers
   ipcMain.handle('dialog:open', secureHandler(async (_, options: Electron.OpenDialogOptions) => {
