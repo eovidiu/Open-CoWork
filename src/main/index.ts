@@ -4,6 +4,7 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { initDatabase, closeDatabase, getDatabase } from './database'
 import { registerIpcHandlers } from './ipc'
 import { setMainWindow } from './ipc/ipc-security'
+import { enforceContentSecurityPolicy } from './csp'
 
 /**
  * Security Note: TLS Certificate Pinning
@@ -180,6 +181,9 @@ app.whenReady().then(async () => {
   session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => {
     callback(false)
   })
+
+  // Enforce CSP via HTTP response headers (removes 'unsafe-inline' from style-src in production)
+  enforceContentSecurityPolicy()
 
   // Initialize database
   await initDatabase()

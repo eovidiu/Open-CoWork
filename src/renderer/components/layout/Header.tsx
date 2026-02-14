@@ -21,7 +21,7 @@ export function Header() {
         >
           <Menu className="h-4 w-4" />
         </Button>
-        <span className="font-medium text-foreground" style={{ fontFamily: '"Space Mono", monospace' }}>open co|work</span>
+        <span className="font-medium font-mono text-foreground">open co|work</span>
         <span className="text-sm text-muted-foreground">
           by{' '}
           <a

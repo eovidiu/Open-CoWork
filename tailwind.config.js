@@ -11,7 +11,8 @@ module.exports = {
       }
     },
     fontFamily: {
-      sans: ['Geist', 'system-ui', 'sans-serif']
+      sans: ['Geist', 'system-ui', 'sans-serif'],
+      mono: ['"Space Mono"', 'monospace']
     },
     extend: {
       colors: {
