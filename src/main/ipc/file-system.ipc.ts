@@ -8,6 +8,7 @@ import { getPermissionService } from '../database'
 import { processTracker } from '../services/process-tracker'
 import { redactCredentials } from '../services/credential-scanner'
 import { scanForInjection } from '../services/injection-scanner'
+import { workspaceService } from '../services/workspace.service'
 import {
   validateArgs,
   fsPathSchema,
@@ -89,6 +90,7 @@ export function registerFileSystemHandlers(): void {
   ipcMain.handle('fs:readFile', secureHandler(async (_, path: unknown) => {
     const checkedPath = validateArgs(fsPathSchema, path)
     const validPath = await validatePath(checkedPath)
+    await workspaceService.validateWorkspacePath(validPath)
     const permissionService = getPermissionService()
     const perm = await permissionService.check(validPath, 'fs:readFile')
     if (!perm) {
@@ -108,6 +110,7 @@ export function registerFileSystemHandlers(): void {
   ipcMain.handle('fs:readFileBase64', secureHandler(async (_, path: unknown) => {
     const checkedPath = validateArgs(fsPathSchema, path)
     const validPath = await validatePath(checkedPath)
+    await workspaceService.validateWorkspacePath(validPath)
     const permissionService = getPermissionService()
     const perm = await permissionService.check(validPath, 'fs:readFile')
     if (!perm) {
@@ -142,6 +145,7 @@ export function registerFileSystemHandlers(): void {
   ipcMain.handle('fs:writeFile', secureHandler(async (_, path: unknown, content: unknown) => {
     const validated = validateArgs(fsWriteFileSchema, { path, content })
     const validPath = await validatePath(validated.path)
+    await workspaceService.validateWorkspacePath(validPath)
     const permissionService = getPermissionService()
     const perm = await permissionService.check(validPath, 'fs:writeFile')
     if (!perm) {
@@ -156,6 +160,7 @@ export function registerFileSystemHandlers(): void {
   ipcMain.handle('fs:readDirectory', secureHandler(async (_, path: unknown) => {
     const checkedPath = validateArgs(fsPathSchema, path)
     const validPath = await validatePath(checkedPath)
+    await workspaceService.validateWorkspacePath(validPath)
     const permissionService = getPermissionService()
     const perm = await permissionService.check(validPath, 'fs:readDirectory')
     if (!perm) {
@@ -193,6 +198,7 @@ export function registerFileSystemHandlers(): void {
   ipcMain.handle('fs:glob', secureHandler(async (_, pattern: unknown, cwd?: unknown) => {
     const validated = validateArgs(fsGlobSchema, { pattern, cwd })
     const basePath = validated.cwd ? await validatePath(validated.cwd) : process.cwd()
+    await workspaceService.validateWorkspacePath(basePath)
     const permissionService = getPermissionService()
     const perm = await permissionService.check(basePath, 'fs:glob')
     if (!perm) {
@@ -242,6 +248,7 @@ export function registerFileSystemHandlers(): void {
 
     // Validate the search path
     const validSearchPath = await validatePath(resolvedPath)
+    await workspaceService.validateWorkspacePath(validSearchPath)
     const permissionService = getPermissionService()
     const perm = await permissionService.check(validSearchPath, 'fs:grep')
     if (!perm) {
@@ -322,8 +329,9 @@ export function registerFileSystemHandlers(): void {
     const validated = validateArgs(fsBashSchema, { command, ...(options != null && typeof options === 'object' ? options : {}) })
     const timeout = validated.timeout || 30000 // 30 second default timeout
 
-    // Validate CWD against sensitive paths, then check it exists and is a directory
+    // Validate CWD against sensitive paths and workspace boundary, then check it exists and is a directory
     const cwd = validated.cwd ? await validatePath(validated.cwd) : process.cwd()
+    await workspaceService.validateWorkspacePath(cwd)
     try {
       const cwdStat = await stat(cwd)
       if (!cwdStat.isDirectory()) {

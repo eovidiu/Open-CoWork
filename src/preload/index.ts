@@ -83,6 +83,11 @@ const api = {
     ipcRenderer.invoke('fs:bash', command, options),
   killAllProcesses: () => ipcRenderer.invoke('process:killAll'),
 
+  // Workspace
+  setWorkspaceRoot: (root: string) => ipcRenderer.invoke('workspace:setRoot', root),
+  getWorkspaceRoot: () => ipcRenderer.invoke('workspace:getRoot'),
+  clearWorkspaceRoot: () => ipcRenderer.invoke('workspace:clear'),
+
   // Browser
   browserGetAvailableBrowsers: () => ipcRenderer.invoke('browser:getAvailableBrowsers'),
   browserNavigate: (url: string) => ipcRenderer.invoke('browser:navigate', url),

@@ -6,6 +6,7 @@ import { registerBrowserHandlers, cleanupBrowser } from './browser.ipc'
 import { registerSkillRegistryHandlers } from './skillregistry.ipc'
 import { registerImageHandlers } from './image.ipc'
 import { registerExportHandlers } from './export.ipc'
+import { registerWorkspaceHandlers } from './workspace.ipc'
 
 export function registerIpcHandlers(): void {
   registerDatabaseHandlers()
@@ -16,6 +17,7 @@ export function registerIpcHandlers(): void {
   registerSkillRegistryHandlers()
   registerImageHandlers()
   registerExportHandlers()
+  registerWorkspaceHandlers()
 }
 
 export { cleanupBrowser }
