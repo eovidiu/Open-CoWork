@@ -3,6 +3,7 @@ import { join } from 'path'
 import { platform } from 'os'
 import { existsSync } from 'fs'
 import { getDatabase, getPermissionService } from '../database'
+import { auditLogService } from '../services/audit-log.service'
 import { secureHandler, createRateLimiter } from './ipc-security'
 import {
   validateArgs,
@@ -26,14 +27,31 @@ let currentBrowserType: string | null = null
 // Lazy-loaded playwright module - use require to load at runtime from node_modules
 let playwrightModule: typeof import('playwright') | null = null
 
+const PLAYWRIGHT_NOT_INSTALLED_MESSAGE =
+  'Browser automation is not available. Install Playwright with: pnpm add playwright'
+
 function getPlaywright(): typeof import('playwright') {
   if (!playwrightModule) {
-    // Use dynamic require to prevent bundling - the module name is constructed at runtime
-    const moduleName = 'playwright'
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    playwrightModule = require(moduleName)
+    try {
+      // Use dynamic require to prevent bundling - the module name is constructed at runtime
+      const moduleName = 'playwright'
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      playwrightModule = require(moduleName)
+    } catch {
+      throw new Error(PLAYWRIGHT_NOT_INSTALLED_MESSAGE)
+    }
   }
   return playwrightModule!
+}
+
+// Check whether playwright is available without throwing
+function isPlaywrightAvailable(): boolean {
+  try {
+    getPlaywright()
+    return true
+  } catch {
+    return false
+  }
 }
 
 // URL validation for browser navigation
@@ -313,6 +331,13 @@ export function registerBrowserHandlers(): void {
       // Take screenshot after navigation
       const screenshot = await takeScreenshot(p)
 
+      auditLogService?.log({
+        actor: 'agent',
+        action: 'browser:navigate',
+        target: checkedUrl,
+        result: 'success'
+      })
+
       return {
         success: true,
         url: p.url(),
@@ -320,6 +345,13 @@ export function registerBrowserHandlers(): void {
         screenshot
       }
     } catch (error) {
+      auditLogService?.log({
+        actor: 'agent',
+        action: 'browser:navigate',
+        target: String(url),
+        result: 'error',
+        details: { error: error instanceof Error ? error.message : 'Navigation failed' }
+      })
       return {
         error: true,
         message: error instanceof Error ? error.message : 'Navigation failed'
@@ -627,6 +659,13 @@ export function registerBrowserHandlers(): void {
       }
       await p.goto(checkedUrl, { waitUntil: 'domcontentloaded', timeout: 30000 })
 
+      auditLogService?.log({
+        actor: 'agent',
+        action: 'browser:openForLogin',
+        target: checkedUrl,
+        result: 'success'
+      })
+
       return {
         success: true,
         url: p.url(),
@@ -634,6 +673,13 @@ export function registerBrowserHandlers(): void {
         message: 'Browser opened for login. The user can now log in manually.'
       }
     } catch (error) {
+      auditLogService?.log({
+        actor: 'agent',
+        action: 'browser:openForLogin',
+        target: checkedUrl,
+        result: 'error',
+        details: { error: error instanceof Error ? error.message : 'Failed to open browser for login' }
+      })
       return {
         error: true,
         message: error instanceof Error ? error.message : 'Failed to open browser for login'

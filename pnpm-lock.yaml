@@ -59,9 +59,6 @@ importers:
       lucide-react:
         specifier: 0.460.0
         version: 0.460.0(react@18.3.1)
-      playwright:
-        specifier: 1.57.0
-        version: 1.57.0
       posthog-js:
         specifier: 1.181.0
         version: 1.181.0
@@ -83,6 +80,10 @@ importers:
       zustand:
         specifier: 5.0.1
         version: 5.0.1(@types/react@18.3.27)(react@18.3.1)(use-sync-external-store@1.6.0(react@18.3.1))
+    optionalDependencies:
+      playwright:
+        specifier: 1.57.0
+        version: 1.57.0
     devDependencies:
       '@electron-toolkit/tsconfig':
         specifier: ^1.0.1
@@ -6184,13 +6185,15 @@ snapshots:
 
   pirates@4.0.7: {}
 
-  playwright-core@1.57.0: {}
+  playwright-core@1.57.0:
+    optional: true
 
   playwright@1.57.0:
     dependencies:
       playwright-core: 1.57.0
     optionalDependencies:
       fsevents: 2.3.2
+    optional: true
 
   plist@3.1.0:
     dependencies:

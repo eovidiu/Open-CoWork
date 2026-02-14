@@ -13,6 +13,7 @@
     "test": "vitest",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
+    "sbom": "npm install --package-lock-only --no-audit --no-fund && npx --yes @cyclonedx/cyclonedx-npm@latest --output-file sbom.json --spec-version 1.5 --package-lock-only && rm package-lock.json",
     "postinstall": "electron-builder install-app-deps && prisma generate && pnpm run copy-prisma",
     "copy-prisma": "mkdir -p node_modules/.prisma && cp -r node_modules/.pnpm/@prisma+client@*/node_modules/.prisma/client node_modules/.prisma/",
     "db:generate": "prisma generate",
@@ -45,7 +46,6 @@
     "electron-updater": "6.7.3",
     "fast-glob": "3.3.3",
     "lucide-react": "0.460.0",
-    "playwright": "1.57.0",
     "posthog-js": "1.181.0",
     "react-markdown": "10.1.0",
     "rehype-sanitize": "^6.0.0",
@@ -53,6 +53,9 @@
     "tailwind-merge": "2.5.4",
     "zod": "3.23.8",
     "zustand": "5.0.1"
+  },
+  "optionalDependencies": {
+    "playwright": "1.57.0"
   },
   "devDependencies": {
     "@electron-toolkit/tsconfig": "^1.0.1",
