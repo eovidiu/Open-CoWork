@@ -6,6 +6,7 @@ import {
 } from '../services/settings.service'
 import type { UpdateSettingsInput } from '../../shared/types'
 import { secureHandler } from './ipc-security'
+import { validateArgs, settingsApiKeySchema } from './ipc-validation'
 
 // Electron-specific secure storage implementation
 export function createElectronSecureStorage(): SecureStorageBackend {
@@ -68,19 +69,17 @@ export function registerSettingsHandlers(): void {
   // Note: getApiKey handler removed -- the decrypted key never leaves the main process.
   // The key is injected into OpenRouter requests via session.webRequest.onBeforeSendHeaders.
 
-  ipcMain.handle('settings:setApiKey', secureHandler(async (_, key: string) => {
-    // Validate API key format
-    if (!key || typeof key !== 'string' || key.trim().length === 0) {
-      throw new Error('API key cannot be empty')
-    }
+  ipcMain.handle('settings:setApiKey', secureHandler(async (_, key: unknown) => {
+    const checkedKey = validateArgs(settingsApiKeySchema, key)
+    // Validate API key format (Zod already ensures non-empty string)
     // OpenRouter keys start with 'sk-or-'
-    if (!key.startsWith('sk-or-') && !key.startsWith('sk-')) {
+    if (!checkedKey.startsWith('sk-or-') && !checkedKey.startsWith('sk-')) {
       throw new Error('Invalid API key format. OpenRouter keys typically start with "sk-or-"')
     }
-    if (key.length < 20) {
+    if (checkedKey.length < 20) {
       throw new Error('API key appears too short to be valid')
     }
-    return settingsService.setApiKey(key)
+    return settingsService.setApiKey(checkedKey)
   }))
 
   ipcMain.handle('settings:deleteApiKey', secureHandler(async () => {

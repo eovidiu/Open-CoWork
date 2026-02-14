@@ -8,6 +8,14 @@ import { getPermissionService } from '../database'
 import { processTracker } from '../services/process-tracker'
 import { redactCredentials } from '../services/credential-scanner'
 import { scanForInjection } from '../services/injection-scanner'
+import {
+  validateArgs,
+  fsPathSchema,
+  fsWriteFileSchema,
+  fsBashSchema,
+  fsGlobSchema,
+  fsGrepSchema
+} from './ipc-validation'
 
 // Sensitive paths that should never be accessed
 const SENSITIVE_PATHS = [
@@ -78,8 +86,9 @@ export function registerFileSystemHandlers(): void {
   const moderateLimiter = createRateLimiter(60, 60000) // 60 calls per minute
   const expensiveLimiter = createRateLimiter(10, 60000) // 10 calls per minute
 
-  ipcMain.handle('fs:readFile', secureHandler(async (_, path: string) => {
-    const validPath = await validatePath(path)
+  ipcMain.handle('fs:readFile', secureHandler(async (_, path: unknown) => {
+    const checkedPath = validateArgs(fsPathSchema, path)
+    const validPath = await validatePath(checkedPath)
     const permissionService = getPermissionService()
     const perm = await permissionService.check(validPath, 'fs:readFile')
     if (!perm) {
@@ -96,8 +105,9 @@ export function registerFileSystemHandlers(): void {
   }, moderateLimiter))
 
   // Read file as base64 (for binary files like images)
-  ipcMain.handle('fs:readFileBase64', secureHandler(async (_, path: string) => {
-    const validPath = await validatePath(path)
+  ipcMain.handle('fs:readFileBase64', secureHandler(async (_, path: unknown) => {
+    const checkedPath = validateArgs(fsPathSchema, path)
+    const validPath = await validatePath(checkedPath)
     const permissionService = getPermissionService()
     const perm = await permissionService.check(validPath, 'fs:readFile')
     if (!perm) {
@@ -129,21 +139,23 @@ export function registerFileSystemHandlers(): void {
     }
   }, moderateLimiter))
 
-  ipcMain.handle('fs:writeFile', secureHandler(async (_, path: string, content: string) => {
-    const validPath = await validatePath(path)
+  ipcMain.handle('fs:writeFile', secureHandler(async (_, path: unknown, content: unknown) => {
+    const validated = validateArgs(fsWriteFileSchema, { path, content })
+    const validPath = await validatePath(validated.path)
     const permissionService = getPermissionService()
     const perm = await permissionService.check(validPath, 'fs:writeFile')
     if (!perm) {
       throw new Error(`Permission denied: fs:writeFile on ${validPath}`)
     }
-    if (content.length > MAX_WRITE_SIZE) {
+    if (validated.content.length > MAX_WRITE_SIZE) {
       throw new Error(`Content too large: exceeds ${(MAX_WRITE_SIZE / 1024 / 1024).toFixed(0)}MB write limit`)
     }
-    await writeFile(validPath, content, 'utf-8')
+    await writeFile(validPath, validated.content, 'utf-8')
   }, moderateLimiter))
 
-  ipcMain.handle('fs:readDirectory', secureHandler(async (_, path: string) => {
-    const validPath = await validatePath(path)
+  ipcMain.handle('fs:readDirectory', secureHandler(async (_, path: unknown) => {
+    const checkedPath = validateArgs(fsPathSchema, path)
+    const validPath = await validatePath(checkedPath)
     const permissionService = getPermissionService()
     const perm = await permissionService.check(validPath, 'fs:readDirectory')
     if (!perm) {
@@ -166,9 +178,10 @@ export function registerFileSystemHandlers(): void {
     return results
   }, moderateLimiter))
 
-  ipcMain.handle('fs:exists', secureHandler(async (_, path: string) => {
+  ipcMain.handle('fs:exists', secureHandler(async (_, path: unknown) => {
     try {
-      const validPath = await validatePath(path)
+      const checkedPath = validateArgs(fsPathSchema, path)
+      const validPath = await validatePath(checkedPath)
       await access(validPath)
       return true
     } catch {
@@ -177,8 +190,9 @@ export function registerFileSystemHandlers(): void {
   }))
 
   // Glob - find files matching a pattern
-  ipcMain.handle('fs:glob', secureHandler(async (_, pattern: string, cwd?: string) => {
-    const basePath = cwd ? await validatePath(cwd) : process.cwd()
+  ipcMain.handle('fs:glob', secureHandler(async (_, pattern: unknown, cwd?: unknown) => {
+    const validated = validateArgs(fsGlobSchema, { pattern, cwd })
+    const basePath = validated.cwd ? await validatePath(validated.cwd) : process.cwd()
     const permissionService = getPermissionService()
     const perm = await permissionService.check(basePath, 'fs:glob')
     if (!perm) {
@@ -186,11 +200,11 @@ export function registerFileSystemHandlers(): void {
     }
 
     // Block patterns that start at filesystem root
-    if (pattern.startsWith('/') || pattern.startsWith('/*')) {
+    if (validated.pattern.startsWith('/') || validated.pattern.startsWith('/*')) {
       throw new Error('Glob patterns starting at filesystem root are not allowed')
     }
 
-    const matches = await fg(pattern, {
+    const matches = await fg(validated.pattern, {
       cwd: basePath,
       onlyFiles: false,
       dot: false,
@@ -213,8 +227,9 @@ export function registerFileSystemHandlers(): void {
   }, expensiveLimiter))
 
   // Grep - search file contents for a pattern
-  ipcMain.handle('fs:grep', secureHandler(async (_, pattern: string, searchPath: string, options?: { maxResults?: number }) => {
-    const maxResults = Math.min(options?.maxResults || 100, MAX_GREP_RESULTS)
+  ipcMain.handle('fs:grep', secureHandler(async (_, pattern: unknown, searchPath: unknown, options?: unknown) => {
+    const validated = validateArgs(fsGrepSchema, { pattern, searchPath, options })
+    const maxResults = Math.min(validated.options?.maxResults || 100, MAX_GREP_RESULTS)
     const results: Array<{
       file: string
       line: number
@@ -223,7 +238,7 @@ export function registerFileSystemHandlers(): void {
     }> = []
 
     // Get all text files in the path
-    const resolvedPath = resolve(searchPath)
+    const resolvedPath = resolve(validated.searchPath)
 
     // Validate the search path
     const validSearchPath = await validatePath(resolvedPath)
@@ -236,16 +251,16 @@ export function registerFileSystemHandlers(): void {
     const pathStat = await stat(validSearchPath).catch(() => null)
 
     if (!pathStat) {
-      throw new Error(`Path not found: ${searchPath}`)
+      throw new Error(`Path not found: ${validated.searchPath}`)
     }
 
     // Build regex from pattern (escape special chars for literal search)
     let regex: RegExp
     try {
-      regex = new RegExp(pattern, 'gi')
+      regex = new RegExp(validated.pattern, 'gi')
     } catch {
       // If invalid regex, escape and treat as literal
-      const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      const escaped = validated.pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
       regex = new RegExp(escaped, 'gi')
     }
 
@@ -303,11 +318,12 @@ export function registerFileSystemHandlers(): void {
   }, expensiveLimiter))
 
   // Bash - execute shell commands (with allowlist validation)
-  ipcMain.handle('fs:bash', secureHandler(async (_, command: string, options?: { cwd?: string; timeout?: number }) => {
-    const timeout = options?.timeout || 30000 // 30 second default timeout
+  ipcMain.handle('fs:bash', secureHandler(async (_, command: unknown, options?: unknown) => {
+    const validated = validateArgs(fsBashSchema, { command, ...(options != null && typeof options === 'object' ? options : {}) })
+    const timeout = validated.timeout || 30000 // 30 second default timeout
 
     // Validate CWD against sensitive paths, then check it exists and is a directory
-    const cwd = options?.cwd ? await validatePath(options.cwd) : process.cwd()
+    const cwd = validated.cwd ? await validatePath(validated.cwd) : process.cwd()
     try {
       const cwdStat = await stat(cwd)
       if (!cwdStat.isDirectory()) {
@@ -325,14 +341,14 @@ export function registerFileSystemHandlers(): void {
     }
 
     // Block command substitution — cannot be statically validated
-    if (/\$\(/.test(command) || /`/.test(command)) {
+    if (/\$\(/.test(validated.command) || /`/.test(validated.command)) {
       throw new Error(
         'Command blocked for security: command substitution ($() and backticks) is not allowed'
       )
     }
 
     // Split on all pipeline/chain/sequence operators and validate every command
-    const segments = command.trim().split(/\s*(?:\|{1,2}|&&|;)\s*/)
+    const segments = validated.command.trim().split(/\s*(?:\|{1,2}|&&|;)\s*/)
     if (segments.length === 0 || segments.every((s) => !s.trim())) {
       throw new Error('Invalid command: empty or malformed')
     }
@@ -378,7 +394,7 @@ export function registerFileSystemHandlers(): void {
 
     // Use spawn with sh -c after full pipeline validation
     return new Promise((resolve, reject) => {
-      const child = spawn('sh', ['-c', command], {
+      const child = spawn('sh', ['-c', validated.command], {
         cwd,
         shell: false, // We're explicitly using sh, no need for additional shell
         timeout,
@@ -387,7 +403,7 @@ export function registerFileSystemHandlers(): void {
 
       // Track the child process so killAll can terminate it on abort
       if (child.pid) {
-        processTracker.track(child.pid, command)
+        processTracker.track(child.pid, validated.command)
       }
 
       let stdout = ''

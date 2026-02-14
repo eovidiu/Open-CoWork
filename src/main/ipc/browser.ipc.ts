@@ -4,6 +4,13 @@ import { platform } from 'os'
 import { existsSync } from 'fs'
 import { getDatabase, getPermissionService } from '../database'
 import { secureHandler, createRateLimiter } from './ipc-security'
+import {
+  validateArgs,
+  browserUrlSchema,
+  browserSelectorSchema,
+  browserTypeSchema,
+  browserKeySchema
+} from './ipc-validation'
 
 // Types from playwright (imported dynamically)
 type Browser = Awaited<ReturnType<typeof import('playwright')['chromium']['launch']>>
@@ -287,20 +294,21 @@ export function registerBrowserHandlers(): void {
   }))
 
   // Navigate to a URL
-  ipcMain.handle('browser:navigate', secureHandler(async (_, url: string) => {
+  ipcMain.handle('browser:navigate', secureHandler(async (_, url: unknown) => {
     try {
+      const checkedUrl = validateArgs(browserUrlSchema, url)
       const settings = await getBrowserSettings()
       const p = await ensureBrowser(settings.preferredBrowser || undefined, settings.headless)
-      const urlCheck = validateBrowserUrl(url)
+      const urlCheck = validateBrowserUrl(checkedUrl)
       if (!urlCheck.valid) {
         return { error: true, message: urlCheck.error }
       }
       const permissionService = getPermissionService()
-      const perm = await permissionService.check(url, 'browser:navigate')
+      const perm = await permissionService.check(checkedUrl, 'browser:navigate')
       if (!perm) {
-        return { error: true, message: `Permission denied: browser:navigate to ${url}` }
+        return { error: true, message: `Permission denied: browser:navigate to ${checkedUrl}` }
       }
-      await p.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 })
+      await p.goto(checkedUrl, { waitUntil: 'domcontentloaded', timeout: 30000 })
 
       // Take screenshot after navigation
       const screenshot = await takeScreenshot(p)
@@ -392,23 +400,24 @@ export function registerBrowserHandlers(): void {
   }, expensiveLimiter))
 
   // Click on an element
-  ipcMain.handle('browser:click', secureHandler(async (_, selector: string) => {
+  ipcMain.handle('browser:click', secureHandler(async (_, selector: unknown) => {
+    const checkedSelector = validateArgs(browserSelectorSchema, selector)
     try {
       const settings = await getBrowserSettings()
       const p = await ensureBrowser(settings.preferredBrowser || undefined, settings.headless)
 
       // Try to find and click the element
-      const element = await p.$(selector)
+      const element = await p.$(checkedSelector)
       if (!element) {
         // Try by text content
-        const byText = await p.$(`text="${selector}"`)
+        const byText = await p.$(`text="${checkedSelector}"`)
         if (byText) {
           await byText.click()
           await p.waitForLoadState('domcontentloaded', { timeout: 5000 }).catch(() => {})
           const screenshot = await takeScreenshot(p)
           return { success: true, url: p.url(), screenshot }
         }
-        return { error: true, message: `Element not found: ${selector}` }
+        return { error: true, message: `Element not found: ${checkedSelector}` }
       }
 
       await element.click()
@@ -432,12 +441,13 @@ export function registerBrowserHandlers(): void {
   }, expensiveLimiter))
 
   // Type text into an input
-  ipcMain.handle('browser:type', secureHandler(async (_, selector: string, text: string) => {
+  ipcMain.handle('browser:type', secureHandler(async (_, selector: unknown, text: unknown) => {
+    const validated = validateArgs(browserTypeSchema, { selector, text })
     try {
       const settings = await getBrowserSettings()
       const p = await ensureBrowser(settings.preferredBrowser || undefined, settings.headless)
 
-      await p.fill(selector, text)
+      await p.fill(validated.selector, validated.text)
 
       // Take screenshot after typing
       const screenshot = await takeScreenshot(p)
@@ -452,12 +462,13 @@ export function registerBrowserHandlers(): void {
   }, expensiveLimiter))
 
   // Press a key (Enter, Tab, etc.)
-  ipcMain.handle('browser:press', secureHandler(async (_, key: string) => {
+  ipcMain.handle('browser:press', secureHandler(async (_, key: unknown) => {
+    const checkedKey = validateArgs(browserKeySchema, key)
     try {
       const settings = await getBrowserSettings()
       const p = await ensureBrowser(settings.preferredBrowser || undefined, settings.headless)
 
-      await p.keyboard.press(key)
+      await p.keyboard.press(checkedKey)
       await p.waitForLoadState('domcontentloaded', { timeout: 5000 }).catch(() => {})
 
       // Take screenshot after key press
@@ -599,21 +610,22 @@ export function registerBrowserHandlers(): void {
   }, expensiveLimiter))
 
   // Open browser for user login - ALWAYS headful so user can interact
-  ipcMain.handle('browser:openForLogin', secureHandler(async (_, url: string) => {
+  ipcMain.handle('browser:openForLogin', secureHandler(async (_, url: unknown) => {
+    const checkedUrl = validateArgs(browserUrlSchema, url)
     try {
       const settings = await getBrowserSettings()
       // Always use headless: false for login so user can see and interact with the browser
       const p = await ensureBrowser(settings.preferredBrowser || undefined, false)
-      const urlCheck = validateBrowserUrl(url)
+      const urlCheck = validateBrowserUrl(checkedUrl)
       if (!urlCheck.valid) {
         return { error: true, message: urlCheck.error }
       }
       const permissionService = getPermissionService()
-      const perm = await permissionService.check(url, 'browser:navigate')
+      const perm = await permissionService.check(checkedUrl, 'browser:navigate')
       if (!perm) {
-        return { error: true, message: `Permission denied: browser:navigate to ${url}` }
+        return { error: true, message: `Permission denied: browser:navigate to ${checkedUrl}` }
       }
-      await p.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 })
+      await p.goto(checkedUrl, { waitUntil: 'domcontentloaded', timeout: 30000 })
 
       return {
         success: true,
