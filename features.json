@@ -2,7 +2,7 @@
   "project": "open-cowork",
   "created": "2026-02-14",
   "total_features": 26,
-  "passing": 6,
+  "passing": 7,
   "source": "analysis/general-security-analysis-2026-02-14.md",
   "features": [
     {
@@ -56,8 +56,8 @@
         "Verify fuses are set by inspecting built binary",
         "Run general-security-analyzer on Dim 5 to verify Theme 5 resolved"
       ],
-      "passes": false,
-      "notes": "Theme 5. ELC-010 through ELC-018. 8 sub-findings, all Critical/High. ~2-4h."
+      "passes": true,
+      "notes": "Theme 5. Completed 2026-02-14. afterPack hook flips 6 fuses: RunAsNode=false, EnableNodeOptionsEnvironmentVariable=false, EnableNodeCliInspectArguments=false, OnlyLoadAppFromAsar=true, EnableEmbeddedAsarIntegrityValidation=true, GrantFileProtocolExtraPrivileges=false. Verified with macOS build."
     },
     {
       "id": "F004",

@@ -1,15 +1,15 @@
 # Context Summary
 
 ## Active Context
-- Currently working on: P0 security remediation (6 of 7 P0 items done: F001, F002, F004, F005, F006, F012)
-- Blocking issues: F003 (Electron Fuses), F007 (code signing — needs certs from Ovidiu)
-- Next up: F003 (Electron Fuses), then P1 items
+- Currently working on: P0 security remediation complete (7/7: F001-F006, F012). F007 (code signing) blocked on certs.
+- Blocking issues: F007 (code signing — needs certificates from Ovidiu)
+- Next up: P1 items (F008-F017)
 
 ## Cross-Cutting Concerns
 - This is an Electron app that executes shell commands and accesses the file system on behalf of an AI — security is the dominant concern
 - Specification completeness is ~25% — most behavior is implicit in code
 - No tests exist for renderer, E2E, or security paths
-- **36 unique security FAIL findings** remaining (42 from analysis minus 6 resolved: F001, F002, F004, F005, F006, F012)
+- **35 unique security FAIL findings** remaining (42 from analysis minus 7 resolved: F001, F002, F003, F004, F005, F006, F012)
 - 648 tests passing across 21 test files (up from 605 at baseline)
 
 ## Domain: Open CoWork
@@ -41,12 +41,13 @@
 - ~~getApiKey returns full key to renderer~~ → F005: Handler removed, webRequest injects key at network level
 - ~~No HITL approval gates~~ → F002: approvalStore + ToolApprovalDialog, 7 tools wrapped with executeWithApproval
 
+- ~~Electron Fuses unconfigured~~ → F003: afterPack hook flips 6 fuses, verified with macOS build
+
 **Top remaining issues (see full report):**
-1. Electron Fuses completely unconfigured (8 sub-findings) — critical
-2. No code signing or notarization — critical
-3. No credential detection/redaction in tool outputs — high
-4. No audit logging — high
-5. No privacy policy — high (compliance)
+1. No code signing or notarization — critical (F007, blocked on certs)
+2. No credential detection/redaction in tool outputs — high (F009)
+3. No audit logging — high (F019)
+4. No privacy policy — high, compliance (F008)
 
 ### Gotchas
 - CLAUDE.md now exists in the repo (was missing at 2026-02-10)
