@@ -1,16 +1,16 @@
 # Context Summary
 
 ## Active Context
-- Currently working on: P0 security remediation (5 of 7 P0 items done: F001, F004, F005, F006, F012)
-- Blocking issues: F002 (HITL gates — most complex), F003 (Electron Fuses), F007 (code signing — needs certs)
-- Next up: F002 (HITL approval gates), F003 (Electron Fuses)
+- Currently working on: P0 security remediation (6 of 7 P0 items done: F001, F002, F004, F005, F006, F012)
+- Blocking issues: F003 (Electron Fuses), F007 (code signing — needs certs from Ovidiu)
+- Next up: F003 (Electron Fuses), then P1 items
 
 ## Cross-Cutting Concerns
 - This is an Electron app that executes shell commands and accesses the file system on behalf of an AI — security is the dominant concern
 - Specification completeness is ~25% — most behavior is implicit in code
 - No tests exist for renderer, E2E, or security paths
-- **37 unique security FAIL findings** remaining (42 from analysis minus 5 resolved: F001, F004, F005, F006, F012)
-- 633 tests passing across 20 test files (up from 605 at baseline)
+- **36 unique security FAIL findings** remaining (42 from analysis minus 6 resolved: F001, F002, F004, F005, F006, F012)
+- 648 tests passing across 21 test files (up from 605 at baseline)
 
 ## Domain: Open CoWork
 
@@ -39,24 +39,21 @@
 - ~~fs:exists bypasses validatePath~~ → F012: validatePath added to fs:exists, glob CWD, bash CWD
 - ~~Permission service never wired~~ → F004: Shared singleton, checks on 9 IPC handlers, 14 enforcement tests
 - ~~getApiKey returns full key to renderer~~ → F005: Handler removed, webRequest injects key at network level
+- ~~No HITL approval gates~~ → F002: approvalStore + ToolApprovalDialog, 7 tools wrapped with executeWithApproval
 
-**Top remaining issues (15 themes, see full report):**
-1. No HITL approval gates — DANGEROUS_TOOLS defined but never enforced — critical
-2. Electron Fuses completely unconfigured (8 sub-findings) — critical
-3. Permission service fully built, never wired — high
-4. No credential detection/redaction in tool outputs — high
-5. getApiKey returns full key to renderer — high
-6. No code signing or notarization — critical
-7. No audit logging — high
-8. No privacy policy — high (compliance)
+**Top remaining issues (see full report):**
+1. Electron Fuses completely unconfigured (8 sub-findings) — critical
+2. No code signing or notarization — critical
+3. No credential detection/redaction in tool outputs — high
+4. No audit logging — high
+5. No privacy policy — high (compliance)
 
 ### Gotchas
 - CLAUDE.md now exists in the repo (was missing at 2026-02-10)
 - Auto-update URL in electron-builder.yml is a placeholder (example.com) — do not ship
-- `DANGEROUS_TOOLS` and `MODERATE_TOOLS` arrays in tools.ts are dead code — never imported anywhere
+- HITL approval gates are renderer-only — IPC bypass possible (architectural, accepted for now)
 - electron-builder 24.x has CVE-2024-27303 (ASAR integrity bypass)
 - electron-updater 6.1.7 has CVE-2024-39698 (< 6.3.0)
-- `fs:exists` handler bypasses `validatePath()` entirely
 
 ### Remediation Priorities (Updated 2026-02-14)
 **P0 — Before any distribution:**

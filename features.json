@@ -2,7 +2,7 @@
   "project": "open-cowork",
   "created": "2026-02-14",
   "total_features": 26,
-  "passing": 5,
+  "passing": 6,
   "source": "analysis/general-security-analysis-2026-02-14.md",
   "features": [
     {
@@ -36,8 +36,8 @@
         "Add unit tests verifying dangerous tools are blocked without approval",
         "Run general-security-analyzer on Dim 2 to verify Theme 2 resolved"
       ],
-      "passes": false,
-      "notes": "Theme 2. DANGEROUS_TOOLS/MODERATE_TOOLS in tools.ts:10-11 are dead code. ~4-8h."
+      "passes": true,
+      "notes": "Theme 2. Completed 2026-02-14. approvalStore with blocking Promise, private resolver Map, 60s auto-deny, auto-deny on overwrite. ToolApprovalDialog with countdown timer. executeWithApproval wraps 7 tools (bash, browserNavigate, browserType, installSkill, requestLogin as dangerous; browserClick, browserPress as moderate). Session allowances cleared on conversation switch. Removed phantom writeFile from MODERATE_TOOLS. 15 tests."
     },
     {
       "id": "F003",
