@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, vi } from 'vitest'
-import { mkdtempSync } from 'fs'
+import { mkdtempSync, realpathSync } from 'fs'
 import { writeFileSync, mkdirSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
@@ -76,7 +76,7 @@ describe('Shell Execution Security (Integration)', () => {
 
   beforeAll(async () => {
     // Create a temp working directory for command execution tests
-    tempDir = mkdtempSync(join(tmpdir(), 'shell-exec-test-'))
+    tempDir = realpathSync(mkdtempSync(join(tmpdir(), 'shell-exec-test-')))
 
     // Create a test file inside the temp dir
     writeFileSync(join(tempDir, 'test-file.txt'), 'hello world\n')
@@ -224,9 +224,10 @@ describe('Shell Execution Security (Integration)', () => {
       ).rejects.toThrow(/Command blocked for security/)
     })
 
-    it('should allow full path to an allowed executable (e.g. /usr/bin/ls)', async () => {
-      const result = await callHandler<BashResult>('fs:bash', '/usr/bin/ls', { cwd: tempDir })
-      // The allowlist extracts the basename, so /usr/bin/ls -> "ls" which is allowed
+    it('should allow full path to an allowed executable (e.g. /bin/ls)', async () => {
+      // Use /bin/ls which exists on both macOS and Linux
+      const result = await callHandler<BashResult>('fs:bash', '/bin/ls', { cwd: tempDir })
+      // The allowlist extracts the basename, so /bin/ls -> "ls" which is allowed
       expect(result.exitCode).toBe(0)
       expect(result.stdout).toContain('test-file.txt')
     })
@@ -342,8 +343,8 @@ describe('Shell Execution Security (Integration)', () => {
     })
 
     it('should return empty strings for stdout/stderr when there is no output', async () => {
-      // Use "echo -n" which produces no output but is in the allowlist
-      const result = await callHandler<BashResult>('fs:bash', 'echo -n ""', { cwd: tempDir })
+      // Use "cat /dev/null" which produces no output (cross-platform, unlike BSD echo -n)
+      const result = await callHandler<BashResult>('fs:bash', 'cat /dev/null', { cwd: tempDir })
       expect(result.stdout).toBe('')
       expect(result.exitCode).toBe(0)
     })

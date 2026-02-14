@@ -727,9 +727,10 @@ describe('Filesystem Access IPC Handlers', () => {
     })
 
     it('should extract program name from full paths', async () => {
+      // Use /bin/echo which exists on both macOS and Linux
       const result = await callHandler<{ stdout: string; exitCode: number }>(
         'fs:bash',
-        '/usr/bin/echo test',
+        '/bin/echo test',
         { cwd: tempDir }
       )
 

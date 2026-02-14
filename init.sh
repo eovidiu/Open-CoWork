@@ -32,7 +32,7 @@ fi
 # Install dependencies
 echo ""
 echo "--- Installing dependencies ---"
-pnpm install --frozen-lockfile || pnpm install || exit 1
+pnpm install || exit 1
 
 # Generate Prisma client (required for tests)
 echo ""

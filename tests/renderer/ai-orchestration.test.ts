@@ -381,7 +381,7 @@ describe('Compaction safety', () => {
     // This is a static analysis test
     const fs = await import('fs')
     const source = fs.readFileSync(
-      '/workspace/src/renderer/services/ai/openrouter.ts',
+      require('path').resolve(__dirname, '../../src/renderer/services/ai/openrouter.ts'),
       'utf-8'
     )
     expect(source).toContain(
@@ -400,7 +400,7 @@ describe('streamChat safety defaults', () => {
   it('source code sets maxSteps default to 10 (reduced from 15)', async () => {
     const fs = await import('fs')
     const source = fs.readFileSync(
-      '/workspace/src/renderer/services/ai/openrouter.ts',
+      require('path').resolve(__dirname, '../../src/renderer/services/ai/openrouter.ts'),
       'utf-8'
     )
     // Verify the default parameter value
@@ -411,7 +411,7 @@ describe('streamChat safety defaults', () => {
   it('source code sets maxRetries default to 2 (reduced from 3)', async () => {
     const fs = await import('fs')
     const source = fs.readFileSync(
-      '/workspace/src/renderer/services/ai/openrouter.ts',
+      require('path').resolve(__dirname, '../../src/renderer/services/ai/openrouter.ts'),
       'utf-8'
     )
     expect(source).toMatch(/maxRetries\s*=\s*2/)
