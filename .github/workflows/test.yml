@@ -26,5 +26,12 @@ jobs:
       - name: Generate Prisma client
         run: pnpm exec prisma generate
 
+      - name: Security audit (high severity)
+        continue-on-error: true
+        run: pnpm audit --audit-level=high || echo "::warning::pnpm audit found vulnerabilities"
+
+      - name: Security audit (critical severity)
+        run: pnpm audit --audit-level=critical
+
       - name: Run tests
         run: pnpm test:run
