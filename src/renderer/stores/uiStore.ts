@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { useApprovalStore } from './approvalStore'
 
 export interface ModelOption {
   id: string
@@ -84,6 +85,10 @@ export const useUIStore = create<UIState>()(
 
       setActiveConversation: (id) =>
         set((state) => {
+          // Clear approval session allowances when switching conversations
+          if (id !== state.activeConversationId) {
+            useApprovalStore.getState().clearSession()
+          }
           // When switching to a conversation, mark it as read
           const newUnread = id
             ? state.unreadConversations.filter((c) => c !== id)

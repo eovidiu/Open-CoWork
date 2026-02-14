@@ -86,7 +86,6 @@ describe('Tool risk tier assignments', () => {
 
   it('MODERATE_TOOLS contains exactly the expected moderate-risk tools', () => {
     expect([...MODERATE_TOOLS]).toEqual([
-      'writeFile',
       'browserClick',
       'browserPress'
     ])
@@ -94,8 +93,7 @@ describe('Tool risk tier assignments', () => {
 
   it('every tool in DANGEROUS_TOOLS actually exists in the tools map', () => {
     for (const name of DANGEROUS_TOOLS) {
-      // writeFile is declared in MODERATE_TOOLS but not yet in tools map;
-      // DANGEROUS_TOOLS entries must exist
+      // DANGEROUS_TOOLS entries must exist in the tools map
       expect(
         allToolNames.includes(name),
         `DANGEROUS_TOOLS contains "${name}" but it is not in the tools map`
@@ -105,7 +103,6 @@ describe('Tool risk tier assignments', () => {
 
   it('every tool in MODERATE_TOOLS that exists in the tools map is present', () => {
     for (const name of MODERATE_TOOLS) {
-      // writeFile may not be in the current tools map, so skip if absent
       if (allToolNames.includes(name)) {
         expect(
           (MODERATE_TOOLS as readonly string[]).includes(name)

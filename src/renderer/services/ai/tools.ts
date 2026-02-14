@@ -4,14 +4,34 @@ import { useTodoStore, type Todo, type TodoStatus } from '../../stores/todoStore
 import { useBrowserStore } from '../../stores/browserStore'
 import { useQuestionStore } from '../../stores/questionStore'
 import { useUIStore } from '../../stores/uiStore'
+import { useApprovalStore } from '../../stores/approvalStore'
 import { queryImage as queryImageService } from './imageQuery'
 
 // Tool risk tiers for security
 export const DANGEROUS_TOOLS = ['bash', 'browserNavigate', 'browserType', 'installSkill', 'requestLogin'] as const
-export const MODERATE_TOOLS = ['writeFile', 'browserClick', 'browserPress'] as const
+export const MODERATE_TOOLS = ['browserClick', 'browserPress'] as const
 // All other tools are considered safe
 
 export type DangerousToolName = typeof DANGEROUS_TOOLS[number]
+
+type ToolTier = 'dangerous' | 'moderate'
+
+async function executeWithApproval<TArgs extends Record<string, unknown>, TResult>(
+  toolName: string,
+  tier: ToolTier,
+  args: TArgs,
+  execute: (args: TArgs) => Promise<TResult>
+): Promise<TResult | { error: true; message: string; denied: true }> {
+  const approved = await useApprovalStore.getState().requestApproval(toolName, args, tier)
+  if (!approved) {
+    return {
+      error: true,
+      message: `User denied permission for ${toolName}`,
+      denied: true
+    }
+  }
+  return execute(args)
+}
 
 // Helper to get the active conversation ID from the UI store
 function getActiveConversationId(): string | null {
@@ -401,38 +421,40 @@ Examples of BLOCKED commands (will be rejected):
       cwd: z.string().optional().describe('The working directory to run the command in (optional)'),
       timeout: z.number().optional().describe('Timeout in milliseconds (default: 30000, max: 120000)')
     }),
-    execute: async ({ command, cwd, timeout }) => {
-      try {
-        const result = await window.api.bash(command, {
-          cwd,
-          timeout: Math.min(timeout || 30000, 120000)
-        })
+    execute: async (args) => {
+      return executeWithApproval('bash', 'dangerous', args, async ({ command, cwd, timeout }) => {
+        try {
+          const result = await window.api.bash(command, {
+            cwd,
+            timeout: Math.min(timeout || 30000, 120000)
+          })
 
-        // Format the result for the agent
-        if (result.exitCode !== 0) {
+          // Format the result for the agent
+          if (result.exitCode !== 0) {
+            return {
+              success: false,
+              exitCode: result.exitCode,
+              stdout: result.stdout,
+              stderr: result.stderr,
+              message: `Command failed with exit code ${result.exitCode}`,
+              suggestion: result.stderr ? `Error output: ${result.stderr}` : 'Check the command syntax and try again'
+            }
+          }
+
           return {
-            success: false,
-            exitCode: result.exitCode,
+            success: true,
+            exitCode: 0,
             stdout: result.stdout,
-            stderr: result.stderr,
-            message: `Command failed with exit code ${result.exitCode}`,
-            suggestion: result.stderr ? `Error output: ${result.stderr}` : 'Check the command syntax and try again'
+            stderr: result.stderr || undefined
+          }
+        } catch (error) {
+          return {
+            error: true,
+            message: error instanceof Error ? error.message : 'Failed to execute command',
+            suggestion: 'This command may be blocked for safety reasons, or the path may be invalid'
           }
         }
-
-        return {
-          success: true,
-          exitCode: 0,
-          stdout: result.stdout,
-          stderr: result.stderr || undefined
-        }
-      } catch (error) {
-        return {
-          error: true,
-          message: error instanceof Error ? error.message : 'Failed to execute command',
-          suggestion: 'This command may be blocked for safety reasons, or the path may be invalid'
-        }
-      }
+      })
     }
   }),
 
@@ -442,52 +464,54 @@ Examples of BLOCKED commands (will be rejected):
     parameters: z.object({
       url: z.string().describe('The URL to navigate to (e.g., "https://twitter.com", "https://github.com")')
     }),
-    execute: async ({ url }) => {
-      try {
-        // Check if browser is configured
-        const check = await checkBrowserConfigured()
-        if (!check.configured) {
+    execute: async (args) => {
+      return executeWithApproval('browserNavigate', 'dangerous', args, async ({ url }) => {
+        try {
+          // Check if browser is configured
+          const check = await checkBrowserConfigured()
+          if (!check.configured) {
+            return {
+              error: true,
+              message: 'Browser not configured. A dialog has been shown to the user to select their preferred browser.',
+              suggestion: 'Wait for the user to select a browser, then try again.',
+              needsBrowserSetup: true
+            }
+          }
+
+          const result = await window.api.browserNavigate(url)
+          if (result.error) {
+            return {
+              error: true,
+              message: result.message || 'Navigation failed',
+              suggestion: 'Check if the URL is valid and try again'
+            }
+          }
+
+          // Save screenshot to image registry
+          let imageRef: { imageId: number; hint: string } | undefined
+          if (result.screenshot) {
+            const ref = await saveScreenshotToRegistry(result.screenshot, result.url)
+            if (ref) {
+              imageRef = ref
+            }
+          }
+
+          return {
+            success: true,
+            url: result.url,
+            title: result.title,
+            message: `Navigated to ${result.title || result.url}`,
+            ...(imageRef && { imageRef, imageNote: `[Image #${imageRef.imageId}: ${imageRef.hint}. Use queryImage(${imageRef.imageId}, "your question") to analyze.]` }),
+            screenshot: result.screenshot // Keep for UI display
+          }
+        } catch (error) {
           return {
             error: true,
-            message: 'Browser not configured. A dialog has been shown to the user to select their preferred browser.',
-            suggestion: 'Wait for the user to select a browser, then try again.',
-            needsBrowserSetup: true
+            message: error instanceof Error ? error.message : 'Failed to navigate',
+            suggestion: 'The browser may not be available. Try again.'
           }
         }
-
-        const result = await window.api.browserNavigate(url)
-        if (result.error) {
-          return {
-            error: true,
-            message: result.message || 'Navigation failed',
-            suggestion: 'Check if the URL is valid and try again'
-          }
-        }
-
-        // Save screenshot to image registry
-        let imageRef: { imageId: number; hint: string } | undefined
-        if (result.screenshot) {
-          const ref = await saveScreenshotToRegistry(result.screenshot, result.url)
-          if (ref) {
-            imageRef = ref
-          }
-        }
-
-        return {
-          success: true,
-          url: result.url,
-          title: result.title,
-          message: `Navigated to ${result.title || result.url}`,
-          ...(imageRef && { imageRef, imageNote: `[Image #${imageRef.imageId}: ${imageRef.hint}. Use queryImage(${imageRef.imageId}, "your question") to analyze.]` }),
-          screenshot: result.screenshot // Keep for UI display
-        }
-      } catch (error) {
-        return {
-          error: true,
-          message: error instanceof Error ? error.message : 'Failed to navigate',
-          suggestion: 'The browser may not be available. Try again.'
-        }
-      }
+      })
     }
   }),
 
@@ -539,41 +563,43 @@ Examples of BLOCKED commands (will be rejected):
     parameters: z.object({
       selector: z.string().describe('CSS selector or text content to click (e.g., "button.submit", "Sign In", "#login-button")')
     }),
-    execute: async ({ selector }) => {
-      try {
-        const result = await window.api.browserClick(selector)
-        if (result.error) {
+    execute: async (args) => {
+      return executeWithApproval('browserClick', 'moderate', args, async ({ selector }) => {
+        try {
+          const result = await window.api.browserClick(selector)
+          if (result.error) {
+            return {
+              error: true,
+              message: result.message || 'Click failed',
+              suggestion: 'The element may not exist or may not be clickable. Try a different selector.'
+            }
+          }
+
+          // Save screenshot to image registry
+          let imageRef: { imageId: number; hint: string } | undefined
+          if (result.screenshot) {
+            const ref = await saveScreenshotToRegistry(result.screenshot, result.url)
+            if (ref) {
+              imageRef = ref
+            }
+          }
+
+          return {
+            success: true,
+            url: result.url,
+            title: result.title,
+            message: `Clicked on "${selector}"`,
+            ...(imageRef && { imageRef, imageNote: `[Image #${imageRef.imageId}: ${imageRef.hint}. Use queryImage(${imageRef.imageId}, "your question") to analyze.]` }),
+            screenshot: result.screenshot // Keep for UI display
+          }
+        } catch (error) {
           return {
             error: true,
-            message: result.message || 'Click failed',
-            suggestion: 'The element may not exist or may not be clickable. Try a different selector.'
+            message: error instanceof Error ? error.message : 'Failed to click',
+            suggestion: 'Check if the element exists and is visible'
           }
         }
-
-        // Save screenshot to image registry
-        let imageRef: { imageId: number; hint: string } | undefined
-        if (result.screenshot) {
-          const ref = await saveScreenshotToRegistry(result.screenshot, result.url)
-          if (ref) {
-            imageRef = ref
-          }
-        }
-
-        return {
-          success: true,
-          url: result.url,
-          title: result.title,
-          message: `Clicked on "${selector}"`,
-          ...(imageRef && { imageRef, imageNote: `[Image #${imageRef.imageId}: ${imageRef.hint}. Use queryImage(${imageRef.imageId}, "your question") to analyze.]` }),
-          screenshot: result.screenshot // Keep for UI display
-        }
-      } catch (error) {
-        return {
-          error: true,
-          message: error instanceof Error ? error.message : 'Failed to click',
-          suggestion: 'Check if the element exists and is visible'
-        }
-      }
+      })
     }
   }),
 
@@ -583,39 +609,41 @@ Examples of BLOCKED commands (will be rejected):
       selector: z.string().describe('CSS selector for the input field (e.g., "input[name=search]", "#email", ".search-box")'),
       text: z.string().describe('The text to type into the field')
     }),
-    execute: async ({ selector, text }) => {
-      try {
-        const result = await window.api.browserType(selector, text)
-        if (result.error) {
+    execute: async (args) => {
+      return executeWithApproval('browserType', 'dangerous', args, async ({ selector, text }) => {
+        try {
+          const result = await window.api.browserType(selector, text)
+          if (result.error) {
+            return {
+              error: true,
+              message: result.message || 'Type failed',
+              suggestion: 'The input field may not exist. Try a different selector.'
+            }
+          }
+
+          // Save screenshot to image registry
+          let imageRef: { imageId: number; hint: string } | undefined
+          if (result.screenshot) {
+            const ref = await saveScreenshotToRegistry(result.screenshot, result.url)
+            if (ref) {
+              imageRef = ref
+            }
+          }
+
+          return {
+            success: true,
+            message: `Typed "${text}" into ${selector}`,
+            ...(imageRef && { imageRef, imageNote: `[Image #${imageRef.imageId}: ${imageRef.hint}. Use queryImage(${imageRef.imageId}, "your question") to analyze.]` }),
+            screenshot: result.screenshot // Keep for UI display
+          }
+        } catch (error) {
           return {
             error: true,
-            message: result.message || 'Type failed',
-            suggestion: 'The input field may not exist. Try a different selector.'
+            message: error instanceof Error ? error.message : 'Failed to type',
+            suggestion: 'Check if the input field exists and is editable'
           }
         }
-
-        // Save screenshot to image registry
-        let imageRef: { imageId: number; hint: string } | undefined
-        if (result.screenshot) {
-          const ref = await saveScreenshotToRegistry(result.screenshot, result.url)
-          if (ref) {
-            imageRef = ref
-          }
-        }
-
-        return {
-          success: true,
-          message: `Typed "${text}" into ${selector}`,
-          ...(imageRef && { imageRef, imageNote: `[Image #${imageRef.imageId}: ${imageRef.hint}. Use queryImage(${imageRef.imageId}, "your question") to analyze.]` }),
-          screenshot: result.screenshot // Keep for UI display
-        }
-      } catch (error) {
-        return {
-          error: true,
-          message: error instanceof Error ? error.message : 'Failed to type',
-          suggestion: 'Check if the input field exists and is editable'
-        }
-      }
+      })
     }
   }),
 
@@ -624,38 +652,40 @@ Examples of BLOCKED commands (will be rejected):
     parameters: z.object({
       key: z.string().describe('The key to press (e.g., "Enter", "Tab", "Escape", "ArrowDown")')
     }),
-    execute: async ({ key }) => {
-      try {
-        const result = await window.api.browserPress(key)
-        if (result.error) {
+    execute: async (args) => {
+      return executeWithApproval('browserPress', 'moderate', args, async ({ key }) => {
+        try {
+          const result = await window.api.browserPress(key)
+          if (result.error) {
+            return {
+              error: true,
+              message: result.message || 'Key press failed'
+            }
+          }
+
+          // Save screenshot to image registry
+          let imageRef: { imageId: number; hint: string } | undefined
+          if (result.screenshot) {
+            const ref = await saveScreenshotToRegistry(result.screenshot, result.url)
+            if (ref) {
+              imageRef = ref
+            }
+          }
+
+          return {
+            success: true,
+            url: result.url,
+            message: `Pressed ${key}`,
+            ...(imageRef && { imageRef, imageNote: `[Image #${imageRef.imageId}: ${imageRef.hint}. Use queryImage(${imageRef.imageId}, "your question") to analyze.]` }),
+            screenshot: result.screenshot // Keep for UI display
+          }
+        } catch (error) {
           return {
             error: true,
-            message: result.message || 'Key press failed'
+            message: error instanceof Error ? error.message : 'Failed to press key'
           }
         }
-
-        // Save screenshot to image registry
-        let imageRef: { imageId: number; hint: string } | undefined
-        if (result.screenshot) {
-          const ref = await saveScreenshotToRegistry(result.screenshot, result.url)
-          if (ref) {
-            imageRef = ref
-          }
-        }
-
-        return {
-          success: true,
-          url: result.url,
-          message: `Pressed ${key}`,
-          ...(imageRef && { imageRef, imageNote: `[Image #${imageRef.imageId}: ${imageRef.hint}. Use queryImage(${imageRef.imageId}, "your question") to analyze.]` }),
-          screenshot: result.screenshot // Keep for UI display
-        }
-      } catch (error) {
-        return {
-          error: true,
-          message: error instanceof Error ? error.message : 'Failed to press key'
-        }
-      }
+      })
     }
   }),
 
@@ -803,43 +833,45 @@ After calling this tool, WAIT for the user to confirm they've logged in before p
       url: z.string().describe('The URL of the login page (e.g., "https://twitter.com/login", "https://github.com/login")'),
       siteName: z.string().describe('The name of the website for display purposes (e.g., "Twitter", "GitHub")')
     }),
-    execute: async ({ url, siteName }) => {
-      try {
-        // Check if browser is configured
-        const check = await checkBrowserConfigured()
-        if (!check.configured) {
+    execute: async (args) => {
+      return executeWithApproval('requestLogin', 'dangerous', args, async ({ url, siteName }) => {
+        try {
+          // Check if browser is configured
+          const check = await checkBrowserConfigured()
+          if (!check.configured) {
+            return {
+              error: true,
+              message: 'Browser not configured. A dialog has been shown to the user to select their preferred browser.',
+              suggestion: 'Wait for the user to select a browser, then try again.',
+              needsBrowserSetup: true
+            }
+          }
+
+          const result = await window.api.browserOpenForLogin(url)
+          if (result.error) {
+            return {
+              error: true,
+              message: result.message || 'Failed to open browser for login',
+              suggestion: 'Try again or ask the user to manually log in.'
+            }
+          }
+
+          return {
+            success: true,
+            url: result.url,
+            title: result.title,
+            message: `I've opened ${siteName} in a browser window. Please log in to your account there. Let me know when you're done logging in, and I'll continue with your request.`,
+            waitingForUser: true,
+            note: 'IMPORTANT: Wait for the user to confirm they have logged in before taking any further browser actions.'
+          }
+        } catch (error) {
           return {
             error: true,
-            message: 'Browser not configured. A dialog has been shown to the user to select their preferred browser.',
-            suggestion: 'Wait for the user to select a browser, then try again.',
-            needsBrowserSetup: true
+            message: error instanceof Error ? error.message : 'Failed to open login page',
+            suggestion: 'Try again or ask the user to manually log in first.'
           }
         }
-
-        const result = await window.api.browserOpenForLogin(url)
-        if (result.error) {
-          return {
-            error: true,
-            message: result.message || 'Failed to open browser for login',
-            suggestion: 'Try again or ask the user to manually log in.'
-          }
-        }
-
-        return {
-          success: true,
-          url: result.url,
-          title: result.title,
-          message: `I've opened ${siteName} in a browser window. Please log in to your account there. Let me know when you're done logging in, and I'll continue with your request.`,
-          waitingForUser: true,
-          note: 'IMPORTANT: Wait for the user to confirm they have logged in before taking any further browser actions.'
-        }
-      } catch (error) {
-        return {
-          error: true,
-          message: error instanceof Error ? error.message : 'Failed to open login page',
-          suggestion: 'Try again or ask the user to manually log in first.'
-        }
-      }
+      })
     }
   }),
 
@@ -902,53 +934,55 @@ Use this after searching for skills and finding one that matches what the user n
       name: z.string().describe('The display name of the skill'),
       description: z.string().describe('A brief description of what the skill does')
     }),
-    execute: async ({ skillId, name, description }) => {
-      try {
-        // Check if skill is already installed
-        const existingSkills = await window.api.getSkills()
-        const alreadyInstalled = existingSkills.some((s: { name: string }) => s.name === name)
+    execute: async (args) => {
+      return executeWithApproval('installSkill', 'dangerous', args, async ({ skillId, name, description }) => {
+        try {
+          // Check if skill is already installed
+          const existingSkills = await window.api.getSkills()
+          const alreadyInstalled = existingSkills.some((s: { name: string }) => s.name === name)
 
-        if (alreadyInstalled) {
+          if (alreadyInstalled) {
+            return {
+              success: true,
+              alreadyInstalled: true,
+              message: `Skill "${name}" is already installed. You can use it now.`
+            }
+          }
+
+          // Fetch skill content via IPC (bypasses CORS)
+          const content = await window.api.skillRegistryGetContent(skillId)
+          if (!content) {
+            return {
+              error: true,
+              message: `Failed to fetch skill content for ${skillId}`,
+              suggestion: 'The skill may have been removed. Try searching again.'
+            }
+          }
+
+          // Install the skill
+          await window.api.createSkill({
+            name,
+            description,
+            content,
+            sourceUrl: `https://skillregistry.io/skills/${skillId}`
+          })
+
           return {
             success: true,
-            alreadyInstalled: true,
-            message: `Skill "${name}" is already installed. You can use it now.`
+            installed: true,
+            name,
+            message: `Successfully installed skill "${name}". The skill instructions are now available. You can use them to help the user.`,
+            skillContent: content.substring(0, 500) + (content.length > 500 ? '...' : ''),
+            note: 'The full skill content is now part of your context. Follow the instructions in the skill to help the user.'
           }
-        }
-
-        // Fetch skill content via IPC (bypasses CORS)
-        const content = await window.api.skillRegistryGetContent(skillId)
-        if (!content) {
+        } catch (error) {
           return {
             error: true,
-            message: `Failed to fetch skill content for ${skillId}`,
-            suggestion: 'The skill may have been removed. Try searching again.'
+            message: error instanceof Error ? error.message : 'Failed to install skill',
+            suggestion: 'Try searching for the skill again or use the browser instead.'
           }
         }
-
-        // Install the skill
-        await window.api.createSkill({
-          name,
-          description,
-          content,
-          sourceUrl: `https://skillregistry.io/skills/${skillId}`
-        })
-
-        return {
-          success: true,
-          installed: true,
-          name,
-          message: `Successfully installed skill "${name}". The skill instructions are now available. You can use them to help the user.`,
-          skillContent: content.substring(0, 500) + (content.length > 500 ? '...' : ''),
-          note: 'The full skill content is now part of your context. Follow the instructions in the skill to help the user.'
-        }
-      } catch (error) {
-        return {
-          error: true,
-          message: error instanceof Error ? error.message : 'Failed to install skill',
-          suggestion: 'Try searching for the skill again or use the browser instead.'
-        }
-      }
+      })
     }
   }),
 

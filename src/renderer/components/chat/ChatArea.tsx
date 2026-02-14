@@ -25,9 +25,11 @@ import { Dialog, DialogContent } from '../ui/dialog'
 import { ChatInput, type ChatInputHandle, type Attachment } from './ChatInput'
 import { FindBar } from './FindBar'
 import { QuestionSlider } from './QuestionSlider'
+import { ToolApprovalDialog } from './ToolApprovalDialog'
 import { useUIStore, modelSupportsSearch, DEFAULT_MODELS } from '../../stores/uiStore'
 import { useAttachmentStore, hashKey } from '../../stores/attachmentStore'
 import { useQuestionStore } from '../../stores/questionStore'
+import { useApprovalStore } from '../../stores/approvalStore'
 import { useConversation, useConversations } from '../../hooks/useConversations'
 import { useChat } from '../../hooks/useChat'
 import { generateConversationTitle } from '../../services/ai/openrouter'
@@ -51,6 +53,7 @@ export function ChatArea({ className }: ChatAreaProps) {
   const { sendMessage, stopGeneration, isLoading, streamingMessage, error } = useChat()
   const { getAttachments } = useAttachmentStore()
   const { activeQuestionSet } = useQuestionStore()
+  const { pendingApproval } = useApprovalStore()
   const [isDragging, setIsDragging] = useState(false)
   const [isFindOpen, setIsFindOpen] = useState(false)
   const dragCounterRef = useRef(0)
@@ -425,6 +428,13 @@ export function ChatArea({ className }: ChatAreaProps) {
       {hasActiveQuestion && (
         <div className="border-t bg-background p-4">
           <QuestionSlider onSubmit={handleQuestionSubmit} />
+        </div>
+      )}
+
+      {/* Tool Approval Dialog - shown when a dangerous/moderate tool needs user approval */}
+      {pendingApproval && (
+        <div className="border-t bg-background p-4">
+          <ToolApprovalDialog />
         </div>
       )}
 
