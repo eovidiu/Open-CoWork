@@ -1,16 +1,16 @@
 # Context Summary
 
 ## Active Context
-- Currently working on: P1 nearly complete (8/10 P1 done: F008-F011, F013-F016). F017 in progress. All 7 P0 done.
+- Currently working on: F019 (audit logging) complete. P1 nearly complete (8/10 P1 done). All 7 P0 done.
 - Blocking issues: F007 (code signing — needs certificates from Ovidiu)
-- Next up: F017 (workspace boundary), then P2 items (F018-F026)
+- Next up: Remaining P2 items (F018-F026)
 
 ## Cross-Cutting Concerns
 - This is an Electron app that executes shell commands and accesses the file system on behalf of an AI — security is the dominant concern
 - Specification completeness is ~25% — most behavior is implicit in code
 - No tests exist for renderer, E2E, or security paths
 - **27 unique security FAIL findings** remaining (42 from analysis minus 15 resolved)
-- 832 tests passing across 25 test files (up from 605 at baseline)
+- 877 tests passing across 27 test files (up from 605 at baseline)
 
 ## Domain: Open CoWork
 
@@ -46,7 +46,7 @@
 **Top remaining issues (see full report):**
 1. No code signing or notarization — critical (F007, blocked on certs)
 2. No credential detection/redaction in tool outputs — high (F009)
-3. No audit logging — high (F019)
+3. ~~No audit logging~~ — F019: AuditLogService with SHA-256 hash chain, JSONL file, wired into fs:bash, fs:writeFile, browser:navigate, browser:openForLogin, permissions:grant, permissions:revoke
 4. ~~No privacy policy~~ — F008: PrivacyNotice (blocking first-launch) + PrivacyPolicy (Settings) implemented
 
 ### Gotchas

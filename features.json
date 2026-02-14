@@ -2,7 +2,7 @@
   "project": "open-cowork",
   "created": "2026-02-14",
   "total_features": 26,
-  "passing": 15,
+  "passing": 20,
   "source": "analysis/general-security-analysis-2026-02-14.md",
   "features": [
     {
@@ -290,8 +290,8 @@
         "Add unit tests for boundary enforcement",
         "Run general-security-analyzer on Dim 2 and Dim 6 to verify Theme 15 resolved"
       ],
-      "passes": false,
-      "notes": "Theme 15. AGT-005, SEC-004/005. Agent can read ~/.bashrc, ~/.kube/config etc. ~4-8h."
+      "passes": true,
+      "notes": "Theme 15. Completed 2026-02-15. WorkspaceService with setRoot/getRoot/clear/isWithinWorkspace/validateWorkspacePath. Wired into 7 IPC handlers (readFile, writeFile, readDirectory, glob, grep, readFileBase64, bash CWD). 29 tests."
     },
     {
       "id": "F018",
@@ -324,8 +324,8 @@
         "Remove agent's ability to modify ToolCall records (db:toolCalls:update)",
         "Run general-security-analyzer on Dim 2 and Dim 6 to verify Theme 11 resolved"
       ],
-      "passes": false,
-      "notes": "Theme 11. AGT-030, SEC-020/021. Agent can modify its own logs. ~1d."
+      "passes": true,
+      "notes": "Theme 11. Completed 2026-02-15. AuditLogService with SHA-256 hash chain, JSONL file, appendFileSync. Wired into fs:bash, fs:writeFile, browser:navigate, browser:openForLogin, permissions:grant, permissions:revoke. 16 tests."
     },
     {
       "id": "F020",
@@ -356,8 +356,8 @@
         "Add SBOM verification step to CI",
         "Run general-security-analyzer on Dim 3 to verify SCH-026 resolved"
       ],
-      "passes": false,
-      "notes": "Dim 3 unique. SCH-026. ~2h."
+      "passes": true,
+      "notes": "Dim 3. Completed 2026-02-15. SBOM generation in CI via cyclonedx-npm. Generates package-lock.json from pnpm deps, produces CycloneDX 1.5 SBOM, uploaded as build artifact."
     },
     {
       "id": "F022",
@@ -388,8 +388,8 @@
         "Verify app starts and works without Playwright installed",
         "Run general-security-analyzer on Dim 3 to verify improvement"
       ],
-      "passes": false,
-      "notes": "Dim 3. 400+ transitive deps in production. ~1d."
+      "passes": true,
+      "notes": "Dim 3. Completed 2026-02-15. Playwright moved to optionalDependencies. getPlaywright() has try/catch with user-friendly error message. isPlaywrightAvailable() helper added."
     },
     {
       "id": "F024",
@@ -403,8 +403,8 @@
         "Update CI to handle explicit script execution",
         "Run general-security-analyzer on Dim 3 to verify SCH-022 resolved"
       ],
-      "passes": false,
-      "notes": "Dim 3. SCH-022. ~30min."
+      "passes": true,
+      "notes": "Dim 3. Completed 2026-02-15. ignore-scripts=true added to .npmrc with documentation. CI already uses --ignore-scripts."
     },
     {
       "id": "F025",

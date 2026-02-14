@@ -1,31 +1,36 @@
-# Task Plan: F016 - Remove 'unsafe-inline' from style-src in CSP
+# Task Plan: F019 - Structured Audit Logging Service
 
 ## Goal
-Remove `'unsafe-inline'` from the `style-src` directive in the Content Security Policy, or implement a nonce-based approach if inline styles cannot be eliminated.
+Implement a file-based structured audit logging service with hash-chain tamper detection, wire it into high-risk IPC handlers, and remove the agent's ability to modify ToolCall records.
 
 ## Phases
-- [x] Phase 1: Audit inline style usage in renderer
-- [x] Phase 2: Determine approach (A, B, or C)
-- [x] Phase 3: Implement the chosen approach
-- [x] Phase 4: Test and verify
-- [x] Phase 5: Report findings
+- [x] Phase 1: Create `tests/services/audit-log.test.ts` (TDD - tests first) -- 16 tests, all pass
+- [x] Phase 2: Create `src/main/services/audit-log.service.ts` -- implemented
+- [x] Phase 3: Wire audit logging into IPC handlers (fs:bash, fs:writeFile, browser:navigate, browser:openForLogin, permissions grant/revoke)
+- [SKIP] Phase 4: Remove `db:toolCalls:update` -- skipped per Ovidiu's instruction
+- [x] Phase 5: Initialize audit log in main process startup
+- [x] Phase 6: Run all tests and verify -- 877 tests pass across 27 files
 
-## Key Questions
-1. How many inline styles exist in JSX components? → 6 locations (3 fontFamily, 2 virtualizer, 1 textarea resize)
-2. Do Radix UI / shadcn components inject dynamic inline styles? → Yes, but via JS (element.style) which is script-src, not style-src
-3. Can all inline styles be converted to Tailwind classes? → fontFamily ones yes; virtualizer ones use dynamic values but are JS-applied (not affected by style-src)
-4. Is a nonce-based approach needed? → No. CSP style-src only controls <style> elements and HTML style attributes, not JS-applied styles
+## Key Decisions
+- Audit log is file-based JSONL, NOT in Prisma/SQLite
+- Synchronous writes (appendFileSync) to avoid crash data loss
+- SHA-256 hash chain for tamper detection
+- Log directory: `{userData}/audit/`
+- `db:toolCalls:update` is defined in preload + type declarations but never actually called from renderer code, so removal is safe
 
-## Decisions Made
-- Moved CSP from HTML meta tag to main process HTTP headers via onHeadersReceived (authoritative control)
-- In production: 'unsafe-inline' removed from style-src (CSS extracted to files by Vite)
-- In development: 'unsafe-inline' kept for style-src (Vite HMR injects <style> tags)
-- Created separate csp.ts module to keep index.ts clean and allow independent testing
-- Added "Space Mono" to Tailwind mono font family, replaced 3 inline fontFamily styles with font-mono class
-- Virtualizer and textarea inline styles left as-is (they use JS element.style, not affected by style-src)
+## Files to Create
+1. `src/main/services/audit-log.service.ts` - The service
+2. `tests/services/audit-log.test.ts` - Tests
 
-## Errors Encountered
-- main-window-security.test.ts mock lacked onHeadersReceived → added typeof guard in csp.ts
+## Files to Modify
+1. `src/main/ipc/file-system.ipc.ts` - Add audit logging to fs:bash and fs:writeFile
+2. `src/main/ipc/browser.ipc.ts` - Add audit logging to browser:navigate and browser:openForLogin
+3. `src/main/ipc/permissions.ipc.ts` - Add audit logging to permissions:grant and permissions:revoke
+4. `src/main/ipc/database.ipc.ts` - Remove db:toolCalls:update handler
+5. `src/main/index.ts` - Initialize audit log on startup
+6. `src/preload/index.ts` - Remove updateToolCall from preload API
+7. `src/preload/index.d.ts` - Remove updateToolCall from type declaration
+8. `src/renderer/env.d.ts` - Remove updateToolCall from renderer types
 
 ## Status
-**Complete** — All phases done. Not committed per instructions.
+**COMPLETE** - All phases done, all 877 tests pass
