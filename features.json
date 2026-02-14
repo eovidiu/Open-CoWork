@@ -2,7 +2,7 @@
   "project": "open-cowork",
   "created": "2026-02-14",
   "total_features": 26,
-  "passing": 20,
+  "passing": 22,
   "source": "analysis/general-security-analysis-2026-02-14.md",
   "features": [
     {
@@ -372,8 +372,8 @@
         "Add unit tests with PII samples",
         "Run general-security-analyzer on Dim 4 to verify PRV-004/047 resolved"
       ],
-      "passes": false,
-      "notes": "Dim 4. PRV-004/047. User data sent to OpenRouter with no awareness. ~2-3d."
+      "passes": true,
+      "notes": "Dim 4. Completed 2026-02-15. PII scanner with 5 pattern types (email, phone, SSN, credit card with Luhn, US address). IPC handler pii:scan. Wired into useChat.ts (detection + console.warn, non-blocking). 59 tests."
     },
     {
       "id": "F023",
@@ -419,8 +419,8 @@
         "Verify private IP blocking still works alongside domain confirmation",
         "Run general-security-analyzer on Dim 1 and Dim 2 to verify Theme 16 improvement"
       ],
-      "passes": false,
-      "notes": "Theme 16. LLM-042, AGT-006. Agent can browse authenticated sessions. ~4h."
+      "passes": true,
+      "notes": "Theme 16. Completed 2026-02-15. DomainAllowlistService with permanent + session allowlists, subdomain matching, default safe domains. Blocks browser:navigate/openForLogin for unapproved domains. 5 new IPC handlers. Audit logging. 51 tests."
     },
     {
       "id": "F026",

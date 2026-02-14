@@ -1,36 +1,24 @@
-# Task Plan: F019 - Structured Audit Logging Service
+# Task Plan: Security Remediation — All Implementable Features Complete
 
 ## Goal
-Implement a file-based structured audit logging service with hash-chain tamper detection, wire it into high-risk IPC handlers, and remove the agent's ability to modify ToolCall records.
+Complete all implementable security features from the 6-dimension security analysis.
 
 ## Phases
-- [x] Phase 1: Create `tests/services/audit-log.test.ts` (TDD - tests first) -- 16 tests, all pass
-- [x] Phase 2: Create `src/main/services/audit-log.service.ts` -- implemented
-- [x] Phase 3: Wire audit logging into IPC handlers (fs:bash, fs:writeFile, browser:navigate, browser:openForLogin, permissions grant/revoke)
-- [SKIP] Phase 4: Remove `db:toolCalls:update` -- skipped per Ovidiu's instruction
-- [x] Phase 5: Initialize audit log in main process startup
-- [x] Phase 6: Run all tests and verify -- 877 tests pass across 27 files
+- [x] Phase 1: P0 features (F001-F006) — 6 critical features
+- [x] Phase 2: P1 features (F008-F017) — 10 features
+- [x] Phase 3: P2 features (F019, F021, F023, F024) — 4 features
+- [x] Phase 4: P2 features (F022, F025) — 2 features (final batch)
 
-## Key Decisions
-- Audit log is file-based JSONL, NOT in Prisma/SQLite
-- Synchronous writes (appendFileSync) to avoid crash data loss
-- SHA-256 hash chain for tamper detection
-- Log directory: `{userData}/audit/`
-- `db:toolCalls:update` is defined in preload + type declarations but never actually called from renderer code, so removal is safe
+## Summary
 
-## Files to Create
-1. `src/main/services/audit-log.service.ts` - The service
-2. `tests/services/audit-log.test.ts` - Tests
+**22 of 26 features passing.** Remaining 4:
+- F007 (code signing) — blocked on certificates from Ovidiu
+- F018 (SQLCipher) — deferred, too risky for automated implementation
+- F020 (skill signatures Ed25519) — deferred, ~2-3d complex
+- F026 (behavioral drift detection) — deferred, ~2-3d complex
 
-## Files to Modify
-1. `src/main/ipc/file-system.ipc.ts` - Add audit logging to fs:bash and fs:writeFile
-2. `src/main/ipc/browser.ipc.ts` - Add audit logging to browser:navigate and browser:openForLogin
-3. `src/main/ipc/permissions.ipc.ts` - Add audit logging to permissions:grant and permissions:revoke
-4. `src/main/ipc/database.ipc.ts` - Remove db:toolCalls:update handler
-5. `src/main/index.ts` - Initialize audit log on startup
-6. `src/preload/index.ts` - Remove updateToolCall from preload API
-7. `src/preload/index.d.ts` - Remove updateToolCall from type declaration
-8. `src/renderer/env.d.ts` - Remove updateToolCall from renderer types
+## Test Baseline
+987 tests across 29 test files (up from 605 at project start)
 
 ## Status
-**COMPLETE** - All phases done, all 877 tests pass
+**COMPLETE** — All implementable features done. Awaiting Ovidiu's input on remaining items.

@@ -1,16 +1,17 @@
 # Context Summary
 
 ## Active Context
-- Currently working on: F019 (audit logging) complete. P1 nearly complete (8/10 P1 done). All 7 P0 done.
+- Currently working on: All implementable features complete (22/26). F022 (PII scanner) and F025 (domain allowlist) just completed.
 - Blocking issues: F007 (code signing — needs certificates from Ovidiu)
-- Next up: Remaining P2 items (F018-F026)
+- Remaining: F007 (blocked), F018 (SQLCipher — deferred, risky), F020 (skill signatures — deferred, complex), F026 (behavioral drift — deferred, complex)
+- Test baseline: 987 tests across 29 test files
 
 ## Cross-Cutting Concerns
 - This is an Electron app that executes shell commands and accesses the file system on behalf of an AI — security is the dominant concern
 - Specification completeness is ~25% — most behavior is implicit in code
 - No tests exist for renderer, E2E, or security paths
-- **27 unique security FAIL findings** remaining (42 from analysis minus 15 resolved)
-- 877 tests passing across 27 test files (up from 605 at baseline)
+- **23 unique security FAIL findings** remaining (42 from analysis minus 19 resolved)
+- 987 tests passing across 29 test files (up from 605 at baseline)
 
 ## Domain: Open CoWork
 
