@@ -1,0 +1,442 @@
+{
+  "project": "open-cowork",
+  "created": "2026-02-14",
+  "total_features": 26,
+  "passing": 0,
+  "source": "analysis/general-security-analysis-2026-02-14.md",
+  "features": [
+    {
+      "id": "F001",
+      "category": "P0-shell",
+      "description": "Remove interpreters from bash allowlist",
+      "priority": 1,
+      "steps": [
+        "Remove sh, bash, zsh, python, python3, node, npx, env from ALLOWED_EXECUTABLES in file-system.ipc.ts",
+        "Remove curl and wget from ALLOWED_EXECUTABLES (exfiltration vectors)",
+        "Verify bash handler rejects 'bash -c echo test' with error",
+        "Verify bash handler rejects 'python3 -c import os' with error",
+        "Verify bash handler still allows git, ls, cat, grep, find, etc.",
+        "Add unit tests for rejected and allowed commands",
+        "Run general-security-analyzer on Dim 1 and Dim 2 to verify Theme 1 resolved"
+      ],
+      "passes": false,
+      "notes": "Theme 1. file-system.ipc.ts:56-62. Single highest-leverage fix. ~2h."
+    },
+    {
+      "id": "F002",
+      "category": "P0-agentic",
+      "description": "Wire HITL approval gates for dangerous/moderate tools",
+      "priority": 1,
+      "steps": [
+        "Import DANGEROUS_TOOLS and MODERATE_TOOLS from tools.ts into useChat.ts",
+        "Add approval UI component that intercepts tool calls before execution",
+        "Require user confirmation for bash, browserNavigate, browserType, installSkill, requestLogin",
+        "Ensure approval UI cannot be bypassed by the LLM (structural, not prompt-based)",
+        "Add timeout behavior: auto-deny if no response in configurable period",
+        "Add unit tests verifying dangerous tools are blocked without approval",
+        "Run general-security-analyzer on Dim 2 to verify Theme 2 resolved"
+      ],
+      "passes": false,
+      "notes": "Theme 2. DANGEROUS_TOOLS/MODERATE_TOOLS in tools.ts:10-11 are dead code. ~4-8h."
+    },
+    {
+      "id": "F003",
+      "category": "P0-electron",
+      "description": "Configure Electron Fuses",
+      "priority": 1,
+      "steps": [
+        "Add @electron/fuses as devDependency",
+        "Create postbuild script that sets fuses on the packaged binary",
+        "Disable RunAsNode fuse (prevents TCC bypass on macOS)",
+        "Disable EnableNodeOptionsEnvironmentVariable fuse",
+        "Disable EnableNodeCliInspectArguments fuse",
+        "Enable OnlyLoadAppFromAsar fuse",
+        "Disable GrantFileProtocolExtraPrivileges fuse",
+        "Integrate fuse script into build:mac, build:win, build:linux",
+        "Verify fuses are set by inspecting built binary",
+        "Run general-security-analyzer on Dim 5 to verify Theme 5 resolved"
+      ],
+      "passes": false,
+      "notes": "Theme 5. ELC-010 through ELC-018. 8 sub-findings, all Critical/High. ~2-4h."
+    },
+    {
+      "id": "F004",
+      "category": "P0-permissions",
+      "description": "Wire PermissionService into IPC handlers",
+      "priority": 1,
+      "steps": [
+        "Add permissionService.check() call before fs:readFile handler body",
+        "Add permissionService.check() call before fs:writeFile handler body",
+        "Add permissionService.check() call before fs:bash handler body",
+        "Add permissionService.check() call before browser:navigate handler body",
+        "Verify unauthorized access returns Permission Denied error",
+        "Verify first-time access prompts and records permission grant",
+        "Add integration tests for permission-gated operations",
+        "Run general-security-analyzer on Dim 2 to verify Theme 4 resolved"
+      ],
+      "passes": false,
+      "notes": "Theme 4. permission.service.ts is fully implemented but never called. ~4h."
+    },
+    {
+      "id": "F005",
+      "category": "P0-secrets",
+      "description": "Remove getApiKey from preload, route API calls through main process",
+      "priority": 1,
+      "steps": [
+        "Remove getApiKey from preload/index.ts (line 68)",
+        "Create main-process IPC handler that proxies API calls using stored key",
+        "Update renderer AI service to use main-process proxy instead of direct key access",
+        "Keep getApiKeyMasked for UI display purposes only",
+        "Verify renderer cannot access decrypted API key via any path",
+        "Add test confirming getApiKey IPC channel no longer exists",
+        "Run general-security-analyzer on Dim 5 and Dim 6 to verify Theme 8 resolved"
+      ],
+      "passes": false,
+      "notes": "Theme 8. preload/index.ts:68. Any XSS exfiltrates API key. ~4h."
+    },
+    {
+      "id": "F006",
+      "category": "P0-xss",
+      "description": "Add rehype-sanitize to ReactMarkdown",
+      "priority": 1,
+      "steps": [
+        "Install rehype-sanitize package",
+        "Import and add rehypePlugins={[rehypeSanitize]} to ReactMarkdown in ChatArea.tsx",
+        "Use GitHub sanitize schema (default) as starting point",
+        "Verify code blocks still render correctly with syntax highlighting",
+        "Verify markdown tables, links, images still work",
+        "Verify injected HTML tags are stripped (test with <script>, <img onerror>, etc.)",
+        "Run general-security-analyzer on Dim 6 to verify Theme 7 resolved"
+      ],
+      "passes": false,
+      "notes": "Theme 7. ChatArea.tsx:568. Single dependency, single-line change. ~30min."
+    },
+    {
+      "id": "F007",
+      "category": "P0-distribution",
+      "description": "Set up code signing and notarization",
+      "priority": 1,
+      "steps": [
+        "Document certificate requirements (Apple Developer ID, Windows Authenticode)",
+        "Configure electron-builder.yml for macOS code signing",
+        "Enable hardened runtime in macOS build config",
+        "Set notarize: true in electron-builder.yml (requires APPLE_ID env vars)",
+        "Configure ASAR integrity checking",
+        "Update auto-update URL from example.com to actual endpoint",
+        "Add CI/CD steps for signing in GitHub Actions",
+        "Run general-security-analyzer on Dim 5 to verify Theme 10 resolved"
+      ],
+      "passes": false,
+      "notes": "Theme 10. ELC-090/091/092/093. Requires certificates from Ovidiu. ~1-2d."
+    },
+    {
+      "id": "F008",
+      "category": "P1-compliance",
+      "description": "Create and display privacy policy / data processing notice",
+      "priority": 2,
+      "steps": [
+        "Draft privacy policy covering: data collection, LLM provider disclosure, local storage, analytics opt-in",
+        "Create in-app privacy policy view accessible from settings",
+        "Display data processing notice on first launch (before onboarding)",
+        "Disclose that conversations are sent to OpenRouter/LLM providers",
+        "Disclose AI interaction nature to users",
+        "Add acceptance checkbox or acknowledgment",
+        "Run general-security-analyzer on Dim 4 to verify Theme 13 resolved"
+      ],
+      "passes": false,
+      "notes": "Theme 13. PRV-001/022/023/037/056. Required for GDPR/CCPA. ~1d."
+    },
+    {
+      "id": "F009",
+      "category": "P1-credentials",
+      "description": "Implement credential pattern scanner on tool outputs",
+      "priority": 2,
+      "steps": [
+        "Create credential regex patterns: API keys, tokens, private keys, connection strings, passwords",
+        "Add scanning function that runs on tool output before DB storage",
+        "Redact detected credentials with [CREDENTIAL REDACTED] placeholder",
+        "Apply scanner to bash tool output, readFile output, browser content",
+        "Ensure context compaction also runs scanner on summaries",
+        "Add unit tests with sample credential patterns",
+        "Run general-security-analyzer on Dim 1 and Dim 2 to verify Theme 6 resolved"
+      ],
+      "passes": false,
+      "notes": "Theme 6. LLM-011, AGT-010, SEC-020. Credentials persist indefinitely in DB. ~4h."
+    },
+    {
+      "id": "F010",
+      "category": "P1-killswitch",
+      "description": "Add process group kill to stop mechanism",
+      "priority": 2,
+      "steps": [
+        "Track spawned child process PIDs in file-system.ipc.ts",
+        "On abort, kill process group (negative PID signal) not just parent",
+        "Close active browser sessions on abort",
+        "Add IPC handler for kill-all-processes",
+        "Wire stop button in renderer to call kill-all-processes after AbortController",
+        "Verify long-running bash commands are terminated on stop",
+        "Run general-security-analyzer on Dim 1 and Dim 2 to verify Theme 17 resolved"
+      ],
+      "passes": false,
+      "notes": "Theme 17. LLM-053, AGT-026. AbortController only cancels LLM stream. ~2h."
+    },
+    {
+      "id": "F011",
+      "category": "P1-injection",
+      "description": "Add file content sanitization for injection patterns",
+      "priority": 2,
+      "steps": [
+        "Create injection pattern scanner for file content read via readFile tool",
+        "Detect and neutralize: role override attempts, system prompt overrides, tool call injection",
+        "Handle encoding variants: Base64, Unicode escapes, mixed-case",
+        "Add warning to user when injection patterns detected in file content",
+        "Apply scanner to user-attached file content before message insertion",
+        "Add unit tests with known injection payloads",
+        "Run general-security-analyzer on Dim 1 to verify Theme 3 improvement"
+      ],
+      "passes": false,
+      "notes": "Theme 3. LLM-001/002/003. Biggest indirect injection vector. ~4h."
+    },
+    {
+      "id": "F012",
+      "category": "P1-filesystem",
+      "description": "Fix fs:exists to use validatePath",
+      "priority": 2,
+      "steps": [
+        "Add validatePath() call to fs:exists handler in file-system.ipc.ts",
+        "Verify fs:exists rejects paths in SENSITIVE_PATHS",
+        "Verify fs:exists rejects symlinks to sensitive paths",
+        "Add unit test for fs:exists with blocked paths",
+        "Run general-security-analyzer on Dim 6 to verify finding resolved"
+      ],
+      "passes": false,
+      "notes": "New finding #3. file-system.ipc.ts:132-139. ~30min."
+    },
+    {
+      "id": "F013",
+      "category": "P1-deps",
+      "description": "Update electron-updater to >= 6.3.0",
+      "priority": 2,
+      "steps": [
+        "Update electron-updater from 6.1.7 to latest >= 6.3.0 in package.json",
+        "Run pnpm install and verify lockfile updates",
+        "Verify no breaking API changes in updater usage",
+        "Run tests to confirm no regressions",
+        "Run pnpm audit to confirm CVE-2024-39698 resolved"
+      ],
+      "passes": false,
+      "notes": "Theme 14. ELC-082. CVE-2024-39698. ~1h."
+    },
+    {
+      "id": "F014",
+      "category": "P1-ci",
+      "description": "Add pnpm audit to CI pipeline",
+      "priority": 2,
+      "steps": [
+        "Add pnpm audit --audit-level=high step to .github/workflows/test.yml",
+        "Add pnpm audit step before test step",
+        "Configure allowed advisories for known false positives (if any)",
+        "Verify CI fails on high/critical vulnerabilities",
+        "Run general-security-analyzer on Dim 3 to verify Theme 14 improvement"
+      ],
+      "passes": false,
+      "notes": "Theme 14. SCH-019. No automated vulnerability detection. ~30min."
+    },
+    {
+      "id": "F015",
+      "category": "P1-ipc",
+      "description": "Add runtime IPC argument validation with Zod schemas",
+      "priority": 2,
+      "steps": [
+        "Install zod (already in dependencies)",
+        "Create Zod schemas for each IPC channel's expected arguments",
+        "Create validation wrapper that parses args before handler execution",
+        "Apply to high-risk channels first: fs:bash, fs:writeFile, fs:readFile, browser:navigate",
+        "Return structured validation errors to renderer on invalid input",
+        "Add unit tests with malformed arguments",
+        "Run general-security-analyzer on Dim 5 to verify ELC-074 resolved"
+      ],
+      "passes": false,
+      "notes": "Dim 5 unique. ELC-074. zod already in deps. ~4-8h."
+    },
+    {
+      "id": "F016",
+      "category": "P1-csp",
+      "description": "Remove unsafe-inline from style-src in CSP",
+      "priority": 2,
+      "steps": [
+        "Audit current inline styles in renderer (Tailwind, shadcn/ui, dynamic styles)",
+        "Extract inline styles to CSS classes or CSS modules where possible",
+        "Use nonce-based approach for remaining dynamic styles if needed",
+        "Update CSP meta tag to remove 'unsafe-inline' from style-src",
+        "Verify UI renders correctly without inline style allowance",
+        "Run general-security-analyzer on Dim 5 and Dim 6 to verify Theme 18 resolved"
+      ],
+      "passes": false,
+      "notes": "Theme 18. ELC-032/034, SEC-027. CSS injection → data exfiltration. ~2-4h."
+    },
+    {
+      "id": "F017",
+      "category": "P1-filesystem",
+      "description": "Add workspace boundary to file operations",
+      "priority": 2,
+      "steps": [
+        "Define workspace concept: current project directory or user-configured boundary",
+        "Add workspace root tracking (set when user opens a project)",
+        "Restrict fs:readFile, fs:writeFile, fs:readDirectory to workspace + explicit exceptions",
+        "Add configurable exception list for common dotfiles users may need",
+        "Verify file operations outside workspace are rejected",
+        "Verify workspace-relative paths resolve correctly",
+        "Add unit tests for boundary enforcement",
+        "Run general-security-analyzer on Dim 2 and Dim 6 to verify Theme 15 resolved"
+      ],
+      "passes": false,
+      "notes": "Theme 15. AGT-005, SEC-004/005. Agent can read ~/.bashrc, ~/.kube/config etc. ~4-8h."
+    },
+    {
+      "id": "F018",
+      "category": "P2-encryption",
+      "description": "Implement SQLCipher for database encryption",
+      "priority": 3,
+      "steps": [
+        "Replace better-sqlite3 with better-sqlite3-sqlcipher or equivalent",
+        "Generate encryption key via Electron safeStorage",
+        "Migrate existing unencrypted database to encrypted format",
+        "Update database.ts initialization to use key",
+        "Verify database is unreadable without key",
+        "Add migration path for upgrading existing installations",
+        "Run general-security-analyzer on Dim 4 and Dim 6 to verify Theme 12 resolved"
+      ],
+      "passes": false,
+      "notes": "Theme 12. PRV-018/054, SEC-022. database.ts:404 comment acknowledges need. ~1-2d."
+    },
+    {
+      "id": "F019",
+      "category": "P2-logging",
+      "description": "Implement structured audit logging",
+      "priority": 3,
+      "steps": [
+        "Create audit log service with structured event format (timestamp, actor, action, target, result)",
+        "Log all tool executions, permission grants, security-relevant events",
+        "Store audit logs in separate file (not in SQLite DB accessible to agent)",
+        "Make audit log append-only from agent perspective",
+        "Add hash chain for tamper detection",
+        "Remove agent's ability to modify ToolCall records (db:toolCalls:update)",
+        "Run general-security-analyzer on Dim 2 and Dim 6 to verify Theme 11 resolved"
+      ],
+      "passes": false,
+      "notes": "Theme 11. AGT-030, SEC-020/021. Agent can modify its own logs. ~1d."
+    },
+    {
+      "id": "F020",
+      "category": "P2-skills",
+      "description": "Implement skill publisher signatures (Ed25519)",
+      "priority": 3,
+      "steps": [
+        "Define signature scheme (Ed25519 on skill content hash)",
+        "Add signature verification to skill install flow",
+        "Add publisher key management (trusted publisher registry)",
+        "Show signature status in skill marketplace UI",
+        "Warn or block unsigned skills based on user preference",
+        "Add per-skill capability restrictions (which tools a skill can use)",
+        "Run general-security-analyzer on Dim 1 and Dim 3 to verify Theme 9 improvement"
+      ],
+      "passes": false,
+      "notes": "Theme 9. LLM-020, AGT-011/013, SCH-011/018. ~2-3d."
+    },
+    {
+      "id": "F021",
+      "category": "P2-supply-chain",
+      "description": "Generate SBOM in build pipeline",
+      "priority": 3,
+      "steps": [
+        "Add SBOM generation tool (CycloneDX or SPDX format)",
+        "Integrate into build:mac/build:win/build:linux scripts",
+        "Include SBOM in release artifacts",
+        "Add SBOM verification step to CI",
+        "Run general-security-analyzer on Dim 3 to verify SCH-026 resolved"
+      ],
+      "passes": false,
+      "notes": "Dim 3 unique. SCH-026. ~2h."
+    },
+    {
+      "id": "F022",
+      "category": "P2-privacy",
+      "description": "Add PII detection/warning before API calls",
+      "priority": 3,
+      "steps": [
+        "Create PII detection patterns: email, phone, SSN, credit card, address",
+        "Scan user messages and tool outputs before sending to LLM API",
+        "Show warning UI when PII detected, with option to redact or proceed",
+        "Allow user to configure PII sensitivity level",
+        "Add unit tests with PII samples",
+        "Run general-security-analyzer on Dim 4 to verify PRV-004/047 resolved"
+      ],
+      "passes": false,
+      "notes": "Dim 4. PRV-004/047. User data sent to OpenRouter with no awareness. ~2-3d."
+    },
+    {
+      "id": "F023",
+      "category": "P2-supply-chain",
+      "description": "Move Playwright to optional dependency",
+      "priority": 3,
+      "steps": [
+        "Move playwright from dependencies to optionalDependencies in package.json",
+        "Add lazy loading for browser automation module",
+        "Gracefully disable browser tools when Playwright not installed",
+        "Show user-facing message suggesting install when browser tools needed",
+        "Verify app starts and works without Playwright installed",
+        "Run general-security-analyzer on Dim 3 to verify improvement"
+      ],
+      "passes": false,
+      "notes": "Dim 3. 400+ transitive deps in production. ~1d."
+    },
+    {
+      "id": "F024",
+      "category": "P2-supply-chain",
+      "description": "Add ignore-scripts=true to .npmrc",
+      "priority": 3,
+      "steps": [
+        "Create or update .npmrc with ignore-scripts=true",
+        "Verify pnpm install still works (postinstall handled separately)",
+        "Document which packages need lifecycle scripts and how to allow them",
+        "Update CI to handle explicit script execution",
+        "Run general-security-analyzer on Dim 3 to verify SCH-022 resolved"
+      ],
+      "passes": false,
+      "notes": "Dim 3. SCH-022. ~30min."
+    },
+    {
+      "id": "F025",
+      "category": "P2-browser",
+      "description": "Add domain confirmation for browser navigation",
+      "priority": 3,
+      "steps": [
+        "Create domain allowlist that user can manage",
+        "Prompt user for confirmation when navigating to new domain",
+        "Remember per-session domain approvals",
+        "Add special handling for requestLogin flow (already requires user action)",
+        "Verify private IP blocking still works alongside domain confirmation",
+        "Run general-security-analyzer on Dim 1 and Dim 2 to verify Theme 16 improvement"
+      ],
+      "passes": false,
+      "notes": "Theme 16. LLM-042, AGT-006. Agent can browse authenticated sessions. ~4h."
+    },
+    {
+      "id": "F026",
+      "category": "P2-agentic",
+      "description": "Add behavioral drift detection",
+      "priority": 3,
+      "steps": [
+        "Define behavioral baseline metrics: tool call patterns, file access patterns, scope adherence",
+        "Implement anomaly detection comparing current session to baseline",
+        "Alert user when behavioral drift detected (unusual tool patterns, scope creep)",
+        "Add configurable sensitivity for drift alerts",
+        "Log drift events in audit log",
+        "Run general-security-analyzer on Dim 2 to verify AGT-027 resolved"
+      ],
+      "passes": false,
+      "notes": "Dim 2. AGT-027. No monitoring for goal deviation. ~2-3d."
+    }
+  ]
+}

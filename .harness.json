@@ -1,0 +1,19 @@
+{
+  "project": "open-cowork",
+  "description": "Security remediation for Electron desktop AI assistant (42 FAIL findings across 6 dimensions)",
+  "stacks": [
+    {
+      "name": "node",
+      "path": "./",
+      "package_manager": "pnpm",
+      "test_command": "pnpm test:run",
+      "build_command": "pnpm build"
+    }
+  ],
+  "smoke_test": null,
+  "context": {
+    "baseline_report": "analysis/general-security-analysis-2026-02-14.md",
+    "verification_skill": "general-security-analyzer",
+    "verification_note": "Before finalizing any subagent work, run the general-security-analyzer skill on affected dimensions to verify no regressions"
+  }
+}
