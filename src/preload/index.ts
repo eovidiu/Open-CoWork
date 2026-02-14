@@ -103,6 +103,16 @@ const api = {
   browserWaitFor: (selector: string, timeout?: number) => ipcRenderer.invoke('browser:waitFor', selector, timeout),
   browserOpenForLogin: (url: string) => ipcRenderer.invoke('browser:openForLogin', url),
 
+  // Browser Domain Allowlist
+  browserIsDomainAllowed: (url: string) =>
+    ipcRenderer.invoke('browser:isDomainAllowed', url),
+  browserAllowDomainForSession: (domain: string) =>
+    ipcRenderer.invoke('browser:allowDomainForSession', domain),
+  browserAllowDomainPermanently: (domain: string) =>
+    ipcRenderer.invoke('browser:allowDomainPermanently', domain),
+  browserGetAllowedDomains: () => ipcRenderer.invoke('browser:getAllowedDomains'),
+  browserClearSessionDomains: () => ipcRenderer.invoke('browser:clearSessionDomains'),
+
   // Dialog
   showOpenDialog: (options: Electron.OpenDialogOptions) =>
     ipcRenderer.invoke('dialog:open', options),
@@ -150,7 +160,10 @@ const api = {
 
   // Export
   exportChatAsMarkdown: (conversationId: string) =>
-    ipcRenderer.invoke('export:markdown', conversationId)
+    ipcRenderer.invoke('export:markdown', conversationId),
+
+  // PII Scanner
+  scanForPii: (text: string) => ipcRenderer.invoke('pii:scan', text)
 }
 
 // Expose in main world

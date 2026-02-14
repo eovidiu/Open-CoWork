@@ -128,6 +128,13 @@ interface Api {
   browserWaitFor: (selector: string, timeout?: number) => Promise<BrowserResult>
   browserOpenForLogin: (url: string) => Promise<BrowserResult>
 
+  // Browser Domain Allowlist
+  browserIsDomainAllowed: (url: string) => Promise<{ allowed: boolean; domain: string }>
+  browserAllowDomainForSession: (domain: string) => Promise<{ success: boolean }>
+  browserAllowDomainPermanently: (domain: string) => Promise<{ success: boolean }>
+  browserGetAllowedDomains: () => Promise<{ permanent: string[]; session: string[] }>
+  browserClearSessionDomains: () => Promise<{ success: boolean }>
+
   // Dialog
   showOpenDialog: (options: Electron.OpenDialogOptions) => Promise<Electron.OpenDialogReturnValue>
   showSaveDialog: (options: Electron.SaveDialogOptions) => Promise<Electron.SaveDialogReturnValue>
@@ -140,6 +147,12 @@ interface Api {
   // Skill Registry
   skillRegistrySearch: (query: string) => Promise<RegistrySkill[]>
   skillRegistryGetContent: (skillId: string) => Promise<string | null>
+
+  // PII Scanner
+  scanForPii: (text: string) => Promise<{
+    hasPii: boolean
+    matches: Array<{ type: string; value: string; index: number }>
+  }>
 }
 
 declare global {

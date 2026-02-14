@@ -99,6 +99,26 @@ vi.mock('../../src/main/database', () => ({
   })
 }))
 
+// Mock domain allowlist service to allow all domains in tests
+vi.mock('../../src/main/services/domain-allowlist.service', async () => {
+  const actual = await vi.importActual<typeof import('../../src/main/services/domain-allowlist.service')>(
+    '../../src/main/services/domain-allowlist.service'
+  )
+  const alwaysAllowService = {
+    isDomainAllowed: () => true,
+    allowForSession: () => {},
+    allowPermanently: () => {},
+    removePermanent: () => {},
+    clearSession: () => {},
+    getAllowedDomains: () => ({ permanent: [], session: [] })
+  }
+  return {
+    ...actual,
+    domainAllowlistService: alwaysAllowService,
+    initDomainAllowlist: () => {}
+  }
+})
+
 // Mock fs.existsSync to return false for browser data dirs
 vi.mock('fs', async () => {
   const actual = await vi.importActual<typeof import('fs')>('fs')

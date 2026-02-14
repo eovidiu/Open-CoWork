@@ -4,6 +4,11 @@ import { platform } from 'os'
 import { existsSync } from 'fs'
 import { getDatabase, getPermissionService } from '../database'
 import { auditLogService } from '../services/audit-log.service'
+import {
+  DomainAllowlistService,
+  domainAllowlistService,
+  initDomainAllowlist
+} from '../services/domain-allowlist.service'
 import { secureHandler, createRateLimiter } from './ipc-security'
 import {
   validateArgs,
@@ -303,6 +308,11 @@ async function takeScreenshot(p: Page): Promise<string> {
 }
 
 export function registerBrowserHandlers(): void {
+  // Initialize domain allowlist singleton if not already done
+  if (!domainAllowlistService) {
+    initDomainAllowlist()
+  }
+
   // Rate limiter for expensive browser operations
   const expensiveLimiter = createRateLimiter(10, 60000) // 10 calls per minute
 
@@ -321,6 +331,24 @@ export function registerBrowserHandlers(): void {
       if (!urlCheck.valid) {
         return { error: true, message: urlCheck.error }
       }
+
+      // Domain allowlist check
+      if (!domainAllowlistService.isDomainAllowed(checkedUrl)) {
+        const domain = DomainAllowlistService.extractDomain(checkedUrl)
+        auditLogService?.log({
+          actor: 'system',
+          action: 'browser:domainBlocked',
+          target: domain,
+          result: 'denied'
+        })
+        return {
+          error: true,
+          needsDomainApproval: true,
+          domain,
+          message: `Navigation to ${domain} requires approval. The domain is not in the allowlist.`
+        }
+      }
+
       const permissionService = getPermissionService()
       const perm = await permissionService.check(checkedUrl, 'browser:navigate')
       if (!perm) {
@@ -652,6 +680,24 @@ export function registerBrowserHandlers(): void {
       if (!urlCheck.valid) {
         return { error: true, message: urlCheck.error }
       }
+
+      // Domain allowlist check
+      if (!domainAllowlistService.isDomainAllowed(checkedUrl)) {
+        const domain = DomainAllowlistService.extractDomain(checkedUrl)
+        auditLogService?.log({
+          actor: 'system',
+          action: 'browser:domainBlocked',
+          target: domain,
+          result: 'denied'
+        })
+        return {
+          error: true,
+          needsDomainApproval: true,
+          domain,
+          message: `Navigation to ${domain} requires approval. The domain is not in the allowlist.`
+        }
+      }
+
       const permissionService = getPermissionService()
       const perm = await permissionService.check(checkedUrl, 'browser:navigate')
       if (!perm) {
@@ -686,6 +732,54 @@ export function registerBrowserHandlers(): void {
       }
     }
   }, expensiveLimiter))
+
+  // Check if a domain is allowed
+  ipcMain.handle('browser:isDomainAllowed', secureHandler(async (_, url: string) => {
+    try {
+      const allowed = domainAllowlistService.isDomainAllowed(url)
+      const domain = DomainAllowlistService.extractDomain(url)
+      return { allowed, domain }
+    } catch {
+      return { allowed: false, domain: url }
+    }
+  }))
+
+  // Add domain to session allowlist
+  ipcMain.handle('browser:allowDomainForSession', secureHandler(async (_, domain: string) => {
+    domainAllowlistService.allowForSession(domain)
+    auditLogService?.log({
+      actor: 'user',
+      action: 'browser:allowDomain',
+      target: domain,
+      result: 'success',
+      details: { permanent: false }
+    })
+    return { success: true }
+  }))
+
+  // Add domain to permanent allowlist
+  ipcMain.handle('browser:allowDomainPermanently', secureHandler(async (_, domain: string) => {
+    domainAllowlistService.allowPermanently(domain)
+    auditLogService?.log({
+      actor: 'user',
+      action: 'browser:allowDomain',
+      target: domain,
+      result: 'success',
+      details: { permanent: true }
+    })
+    return { success: true }
+  }))
+
+  // Get current allowlist state
+  ipcMain.handle('browser:getAllowedDomains', secureHandler(async () => {
+    return domainAllowlistService.getAllowedDomains()
+  }))
+
+  // Clear session allowlist
+  ipcMain.handle('browser:clearSessionDomains', secureHandler(async () => {
+    domainAllowlistService.clearSession()
+    return { success: true }
+  }))
 }
 
 // Cleanup on app quit
