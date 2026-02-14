@@ -33,3 +33,42 @@ Status: Environment setup complete
 - First coding agent to begin work on F001: Remove interpreters from bash allowlist
 
 ---
+
+## Session 2: F001, F006, F012
+Date: 2026-02-14
+Agent: Orchestrator + 3 parallel coding agents + 1 security verification agent
+
+### Worked On:
+- F001: Remove interpreters from bash allowlist (P0)
+- F006: Add rehype-sanitize to ReactMarkdown (P0)
+- F012: Fix fs:exists to use validatePath (P1)
+
+### Completed:
+- F001: Removed 13 dangerous executables (sh/bash/zsh/python/python3/node/npx/env/curl/wget/awk/pip/pip3). Added argument-level validation for find (-exec), sed (/e), git (-c), npm (exec), pnpm (exec/dlx). 142 shell tests pass.
+- F006: Installed rehype-sanitize v6.0.0, wired into ChatArea.tsx. Verified no other ReactMarkdown instances or dangerouslySetInnerHTML exist.
+- F012: Added validatePath to fs:exists, fs:glob CWD, and fs:bash CWD. Uses validated return path. Returns false (no info leak) for sensitive paths.
+- Fixed 8 pre-existing test environment bugs (macOS /var symlink, BSD echo -n, /workspace/ paths)
+
+### Security Verification:
+- Ran security-auditor agent post-implementation
+- F006: VERIFIED — no issues
+- F012: Fixed minor bug (access used original path, not validated path). Added CWD validation to glob/bash.
+- F001: Identified and mitigated additional bypass vectors (awk system(), find -exec, git -c, npm exec, pnpm exec, sed /e). Removed awk/pip/pip3 from allowlist.
+
+### Known Remaining Bypass Vectors (F001):
+- npm/pnpm: Can still do `npm install malicious-package` (lifecycle scripts)
+- git: Other attack vectors beyond -c (hooks, custom pagers via env)
+- These require deeper architectural changes (sandboxed execution environment)
+
+### Git Commits:
+- aedafee: fix: resolve pre-existing test failures on macOS
+- e705f05: security: implement F001, F006, F012
+- 9dbb026: security: harden F001 and F012 based on security verification
+
+### For Next Agent:
+- Next P0 features to tackle: F005 (remove getApiKey from preload), F004 (wire PermissionService), F002 (HITL gates)
+- F002 is the most complex — needs an approval UI component in the renderer
+- F003 (Electron Fuses) and F007 (code signing) need build infrastructure and certificates
+- 618 tests currently passing across 19 files
+
+---

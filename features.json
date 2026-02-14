@@ -2,7 +2,7 @@
   "project": "open-cowork",
   "created": "2026-02-14",
   "total_features": 26,
-  "passing": 0,
+  "passing": 3,
   "source": "analysis/general-security-analysis-2026-02-14.md",
   "features": [
     {
@@ -19,8 +19,8 @@
         "Add unit tests for rejected and allowed commands",
         "Run general-security-analyzer on Dim 1 and Dim 2 to verify Theme 1 resolved"
       ],
-      "passes": false,
-      "notes": "Theme 1. file-system.ipc.ts:56-62. Single highest-leverage fix. ~2h."
+      "passes": true,
+      "notes": "Theme 1. Completed 2026-02-14. Removed sh/bash/zsh/python/python3/node/npx/env/curl/wget/awk/pip/pip3. Added argument-level validation for find/sed/git/npm/pnpm bypass vectors."
     },
     {
       "id": "F002",
@@ -108,8 +108,8 @@
         "Verify injected HTML tags are stripped (test with <script>, <img onerror>, etc.)",
         "Run general-security-analyzer on Dim 6 to verify Theme 7 resolved"
       ],
-      "passes": false,
-      "notes": "Theme 7. ChatArea.tsx:568. Single dependency, single-line change. ~30min."
+      "passes": true,
+      "notes": "Theme 7. Completed 2026-02-14. rehype-sanitize v6.0.0 with default GitHub schema. Verified no other ReactMarkdown instances or dangerouslySetInnerHTML in renderer."
     },
     {
       "id": "F007",
@@ -209,8 +209,8 @@
         "Add unit test for fs:exists with blocked paths",
         "Run general-security-analyzer on Dim 6 to verify finding resolved"
       ],
-      "passes": false,
-      "notes": "New finding #3. file-system.ipc.ts:132-139. ~30min."
+      "passes": true,
+      "notes": "New finding #3. Completed 2026-02-14. validatePath added to fs:exists, fs:glob CWD, and fs:bash CWD. Uses validated return path. Catch returns false (no info leak)."
     },
     {
       "id": "F013",
