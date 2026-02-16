@@ -32,7 +32,9 @@ import { useQuestionStore } from '../../stores/questionStore'
 import { useApprovalStore } from '../../stores/approvalStore'
 import { useConversation, useConversations } from '../../hooks/useConversations'
 import { useChat } from '../../hooks/useChat'
+import { useSettings } from '../../hooks/useSettings'
 import { generateConversationTitle } from '../../services/ai/openrouter'
+import { createAIClient } from '../../services/ai/client-factory'
 import { cn } from '../../lib/utils'
 
 interface ChatAreaProps {
@@ -48,9 +50,11 @@ export function ChatArea({ className }: ChatAreaProps) {
     toggleSearch,
     customModels
   } = useUIStore()
+  const { settings } = useSettings()
   const { createConversation, updateConversation } = useConversations()
   const { messages } = useConversation(activeConversationId)
   const { sendMessage, stopGeneration, isLoading, streamingMessage, error } = useChat()
+  const isOllama = settings?.provider === 'ollama'
   const { getAttachments } = useAttachmentStore()
   const { activeQuestionSet } = useQuestionStore()
   const { pendingApproval } = useApprovalStore()
@@ -133,6 +137,8 @@ export function ChatArea({ className }: ChatAreaProps) {
   }, [])
 
   const handleSubmit = async (content: string, currentAttachments: Attachment[]) => {
+    if (!selectedModel) return
+
     // Create conversation if needed
     let convId = activeConversationId
     if (!convId) {
@@ -147,10 +153,18 @@ export function ChatArea({ className }: ChatAreaProps) {
       const messageContent = content
 
       // Generate proper title in background
+      const titleProvider = (settings?.provider as 'openrouter' | 'ollama') || 'openrouter'
+      const titleClient = createAIClient(titleProvider, {
+        ollamaBaseUrl: settings?.ollamaBaseUrl
+      })
       ;(async () => {
         try {
           console.log(`[Title Generation] Generating title for conversation ${conversationIdForTitle}`)
-          const generatedTitle = await generateConversationTitle(messageContent)
+          const generatedTitle = await generateConversationTitle(
+            messageContent,
+            titleClient,
+            titleProvider === 'ollama' ? selectedModel : undefined
+          )
           console.log(`[Title Generation] Generated: "${generatedTitle}", updating conversation...`)
           updateConversation({ id: conversationIdForTitle, data: { title: generatedTitle } })
           console.log(`[Title Generation] Update sent for conversation ${conversationIdForTitle}`)
@@ -160,9 +174,9 @@ export function ChatArea({ className }: ChatAreaProps) {
       })()
     }
 
-    // Determine model ID - append :online if search is enabled and model supports it
+    // Determine model ID - append :online if search is enabled and model supports it (OpenRouter only)
     let modelToUse = selectedModel
-    if (searchEnabled && currentModelSupportsSearch && !selectedModel.endsWith(':online')) {
+    if (!isOllama && searchEnabled && currentModelSupportsSearch && !selectedModel.endsWith(':online')) {
       modelToUse = `${selectedModel}:online`
     }
 
@@ -444,9 +458,9 @@ export function ChatArea({ className }: ChatAreaProps) {
         activeConversationId={activeConversationId}
         onSubmit={handleSubmit}
         onStop={stopGeneration}
-        searchEnabled={searchEnabled}
+        searchEnabled={!isOllama && searchEnabled}
         toggleSearch={toggleSearch}
-        currentModelSupportsSearch={currentModelSupportsSearch}
+        currentModelSupportsSearch={!isOllama && currentModelSupportsSearch}
       />
     </div>
   )

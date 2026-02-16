@@ -62,6 +62,8 @@ const api = {
     onboardingComplete?: boolean
     browserHeadless?: boolean
     privacyAccepted?: boolean
+    provider?: string
+    ollamaBaseUrl?: string
   }) => ipcRenderer.invoke('settings:update', data),
 
   // Secure Storage (API Key)
@@ -163,7 +165,14 @@ const api = {
     ipcRenderer.invoke('export:markdown', conversationId),
 
   // PII Scanner
-  scanForPii: (text: string) => ipcRenderer.invoke('pii:scan', text)
+  scanForPii: (text: string) => ipcRenderer.invoke('pii:scan', text),
+
+  // Ollama
+  ollamaCheckConnection: (baseUrl?: string) =>
+    ipcRenderer.invoke('ollama:checkConnection', baseUrl),
+  ollamaListModels: (baseUrl?: string) => ipcRenderer.invoke('ollama:listModels', baseUrl),
+  ollamaGetModelInfo: (modelName: string, baseUrl?: string) =>
+    ipcRenderer.invoke('ollama:getModelInfo', modelName, baseUrl)
 }
 
 // Expose in main world

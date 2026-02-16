@@ -1,5 +1,6 @@
 import { createOpenAI } from '@ai-sdk/openai'
 import { streamText, generateText, type CoreMessage, type CoreTool } from 'ai'
+import { wrapToolsForProvider } from './tool-normalizer'
 
 // Simple token estimation (~4 chars per token on average)
 export function estimateTokens(text: string): number {
@@ -22,6 +23,36 @@ export function getContextLimit(model: string): number {
   // Handle :online suffix
   const baseModel = model.replace(/:online$/, '')
   return MODEL_CONTEXT_LIMITS[baseModel] || MODEL_CONTEXT_LIMITS['default']
+}
+
+// Ollama-aware context limit with async model info lookup
+const ollamaContextCache = new Map<string, number>()
+
+export async function getContextLimitForProvider(
+  model: string,
+  provider: 'openrouter' | 'ollama'
+): Promise<number> {
+  if (provider === 'openrouter') {
+    return getContextLimit(model)
+  }
+
+  // Check cache first
+  if (ollamaContextCache.has(model)) {
+    return ollamaContextCache.get(model)!
+  }
+
+  try {
+    const info = await window.api.ollamaGetModelInfo(model)
+    if (info.contextLength) {
+      ollamaContextCache.set(model, info.contextLength)
+      return info.contextLength
+    }
+  } catch {
+    // Fall through to default
+  }
+
+  // Conservative default for unknown Ollama models
+  return 8192
 }
 
 // Calculate total tokens in messages
@@ -84,18 +115,22 @@ export function createOpenRouterClient(apiKey?: string) {
 
 // Generate a short title for a conversation based on the first message
 export async function generateConversationTitle(
-  userMessage: string
+  userMessage: string,
+  client?: ReturnType<typeof createOpenRouterClient>,
+  preferredModel?: string
 ): Promise<string> {
-  const client = createOpenRouterClient()
+  if (!client) client = createOpenRouterClient()
 
   // Try multiple models in order of preference (fast & cheap)
   // Using correct OpenRouter model IDs - prioritize reliable, fast models
-  const models = [
-    'google/gemini-2.0-flash-001',
-    'google/gemini-flash-1.5',
-    'openai/gpt-4o-mini',
-    'anthropic/claude-3-haiku'
-  ]
+  const models = preferredModel
+    ? [preferredModel]
+    : [
+        'google/gemini-2.0-flash-001',
+        'google/gemini-flash-1.5',
+        'openai/gpt-4o-mini',
+        'anthropic/claude-3-haiku'
+      ]
 
   for (const modelId of models) {
     try {
@@ -142,7 +177,9 @@ export async function generateConversationTitle(
 // Keeps the last N messages intact and summarizes the rest
 export async function compactConversation(
   messages: Array<{ role: string; content: string }>,
-  keepLastN: number = 6
+  keepLastN: number = 6,
+  client?: ReturnType<typeof createOpenRouterClient>,
+  preferredModel?: string
 ): Promise<{ summary: string; keptMessages: Array<{ role: string; content: string }> }> {
   // If we don't have enough messages to compact, return as-is
   if (messages.length <= keepLastN) {
@@ -155,15 +192,15 @@ export async function compactConversation(
 
   console.log(`[Compaction] Summarizing ${messagesToSummarize.length} messages, keeping ${keptMessages.length}`)
 
-  const client = createOpenRouterClient()
+  if (!client) client = createOpenRouterClient()
 
   // Build a text representation of the conversation to summarize
   const conversationText = messagesToSummarize
     .map((m) => `${m.role.toUpperCase()}: ${m.content.slice(0, 1000)}${m.content.length > 1000 ? '...' : ''}`)
     .join('\n\n')
 
-  // Use Gemini 3 Flash for summarization
-  const modelId = 'google/gemini-3-flash-preview'
+  // Use preferred model or Gemini 3 Flash for summarization
+  const modelId = preferredModel || 'google/gemini-3-flash-preview'
 
   try {
     console.log(`[Compaction] Using model: ${modelId}`)
@@ -226,6 +263,7 @@ interface StreamChatOptions {
   systemPrompt: string
   messages: Array<{ role: 'user' | 'assistant' | 'system'; content: MessageContent }>
   tools: Record<string, CoreTool>
+  provider?: 'openrouter' | 'ollama'
   model?: string
   maxSteps?: number
   maxRetries?: number
@@ -240,6 +278,7 @@ export async function streamChat({
   systemPrompt,
   messages,
   tools,
+  provider = 'openrouter',
   model = 'anthropic/claude-sonnet-4',
   maxSteps = 10, // Reduced from 15 for safety
   maxRetries = 2, // Reduced from 3 to limit cost exposure
@@ -260,11 +299,13 @@ export async function streamChat({
   let fullText = ''
   let stepCount = 0
 
+  const wrappedTools = wrapToolsForProvider(tools, provider)
+
   try {
     const result = await streamText({
       model: client(model),
       messages: coreMessages,
-      tools,
+      tools: wrappedTools,
       maxSteps, // Allow multiple agent steps for tool use and self-correction
       maxRetries, // Retry on transient errors (default: 3)
       abortSignal,
@@ -345,10 +386,17 @@ function formatError(error: unknown): Error {
     }
     // Network/SSL errors
     if (msg.includes('failed to fetch') || msg.includes('network') || msg.includes('ssl') || msg.includes('err_ssl')) {
-      return new Error('Network error connecting to OpenRouter. Please check your internet connection and try again.')
+      return new Error('Network error. Please check your internet connection and that your AI provider is running.')
     }
     if (msg.includes('timeout') || msg.includes('timed out')) {
       return new Error('Request timed out. Please try again.')
+    }
+    // Ollama-specific errors
+    if (msg.includes('econnrefused') || msg.includes('connection refused')) {
+      return new Error('Could not connect to Ollama. Make sure Ollama is running (ollama serve).')
+    }
+    if (msg.includes('404') && msg.includes('model')) {
+      return new Error('Model not found in Ollama. Run "ollama pull <model>" to download it.')
     }
     return error
   }

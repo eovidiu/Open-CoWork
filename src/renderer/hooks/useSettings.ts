@@ -16,6 +16,8 @@ export function useSettings() {
       onboardingComplete?: boolean
       preferredBrowser?: string
       privacyAccepted?: boolean
+      provider?: string
+      ollamaBaseUrl?: string
     }) => window.api.updateSettings(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings'] })

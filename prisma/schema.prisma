@@ -86,5 +86,7 @@ model Settings {
   preferredBrowser   String?  // "chrome", "arc", "edge", "brave", etc.
   browserHeadless    Boolean  @default(true) // Run browser in headless mode by default
   privacyAccepted    Boolean  @default(false)
+  provider           String   @default("openrouter") // "openrouter" | "ollama"
+  ollamaBaseUrl      String   @default("http://localhost:11434")
   updatedAt          DateTime @updatedAt
 }

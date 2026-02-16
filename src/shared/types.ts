@@ -62,6 +62,8 @@ export interface UpdateSettingsInput {
   preferredBrowser?: string
   browserHeadless?: boolean
   privacyAccepted?: boolean
+  provider?: string
+  ollamaBaseUrl?: string
 }
 
 // External/UI types (not from database)

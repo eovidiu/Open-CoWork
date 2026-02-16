@@ -192,6 +192,54 @@ describe('SettingsService', () => {
     })
   })
 
+  describe('provider and ollamaBaseUrl', () => {
+    beforeEach(async () => {
+      await prisma.settings.update({
+        where: { id: 'default' },
+        data: {
+          provider: 'openrouter',
+          ollamaBaseUrl: 'http://localhost:11434'
+        }
+      })
+    })
+
+    it('should default provider to openrouter', async () => {
+      const settingsService = createSettingsService(prisma)
+      const settings = await settingsService.get()
+      expect(settings!.provider).toBe('openrouter')
+    })
+
+    it('should default ollamaBaseUrl to http://localhost:11434', async () => {
+      const settingsService = createSettingsService(prisma)
+      const settings = await settingsService.get()
+      expect(settings!.ollamaBaseUrl).toBe('http://localhost:11434')
+    })
+
+    it('should update provider to ollama', async () => {
+      const settingsService = createSettingsService(prisma)
+      const updated = await settingsService.update({ provider: 'ollama' })
+      expect(updated.provider).toBe('ollama')
+    })
+
+    it('should update ollamaBaseUrl', async () => {
+      const settingsService = createSettingsService(prisma)
+      const updated = await settingsService.update({
+        ollamaBaseUrl: 'http://192.168.1.100:11434'
+      })
+      expect(updated.ollamaBaseUrl).toBe('http://192.168.1.100:11434')
+    })
+
+    it('should update provider and ollamaBaseUrl together', async () => {
+      const settingsService = createSettingsService(prisma)
+      const updated = await settingsService.update({
+        provider: 'ollama',
+        ollamaBaseUrl: 'http://my-server:11434'
+      })
+      expect(updated.provider).toBe('ollama')
+      expect(updated.ollamaBaseUrl).toBe('http://my-server:11434')
+    })
+  })
+
   describe('API Key operations without secure storage', () => {
     it('should return null when no secure storage is provided', async () => {
       const settingsService = createSettingsService(prisma)

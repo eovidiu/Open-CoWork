@@ -54,6 +54,7 @@
 - CLAUDE.md now exists in the repo (was missing at 2026-02-10)
 - Auto-update URL in electron-builder.yml is a placeholder (example.com) — do not ship
 - HITL approval gates are renderer-only — IPC bypass possible (architectural, accepted for now)
+- `.npmrc` has `ignore-scripts=true` (F024) — after `pnpm install` or schema changes, must manually run `pnpm run postinstall` (or `pnpm db:generate && pnpm run copy-prisma`)
 - electron-builder 24.x has CVE-2024-27303 (ASAR integrity bypass)
 - electron-updater 6.1.7 has CVE-2024-39698 (< 6.3.0)
 

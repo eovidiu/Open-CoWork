@@ -8,6 +8,7 @@ import { registerImageHandlers } from './image.ipc'
 import { registerExportHandlers } from './export.ipc'
 import { registerWorkspaceHandlers } from './workspace.ipc'
 import { registerPiiHandlers } from './pii.ipc'
+import { registerOllamaHandlers } from './ollama.ipc'
 
 export function registerIpcHandlers(): void {
   registerDatabaseHandlers()
@@ -20,6 +21,7 @@ export function registerIpcHandlers(): void {
   registerExportHandlers()
   registerWorkspaceHandlers()
   registerPiiHandlers()
+  registerOllamaHandlers()
 }
 
 export { cleanupBrowser }

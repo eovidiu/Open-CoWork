@@ -93,6 +93,8 @@ interface Api {
     onboardingComplete?: boolean
     preferredBrowser?: string
     browserHeadless?: boolean
+    provider?: string
+    ollamaBaseUrl?: string
   }) => Promise<Settings>
 
   // Secure Storage
@@ -202,6 +204,27 @@ interface Api {
   scanForPii: (text: string) => Promise<{
     hasPii: boolean
     matches: Array<{ type: string; value: string; index: number }>
+  }>
+
+  // Ollama
+  ollamaCheckConnection: (baseUrl?: string) => Promise<{
+    connected: boolean
+    version?: string
+    error?: string
+  }>
+  ollamaListModels: (baseUrl?: string) => Promise<{
+    models: Array<{ name: string; size: number; modifiedAt: string }>
+    error?: string
+  }>
+  ollamaGetModelInfo: (
+    modelName: string,
+    baseUrl?: string
+  ) => Promise<{
+    name?: string
+    contextLength?: number
+    parameters?: string
+    template?: string
+    error?: string
   }>
 }
 

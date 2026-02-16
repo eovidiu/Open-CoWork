@@ -22,7 +22,7 @@ export function enforceContentSecurityPolicy(): void {
     styleSrc,
     'font-src https://fonts.gstatic.com',
     "img-src 'self' data: blob:",
-    "connect-src 'self' https://openrouter.ai https://*.posthog.com https://skillregistry.io"
+    "connect-src 'self' https://openrouter.ai https://*.posthog.com https://skillregistry.io http://localhost:* http://127.0.0.1:*"
   ].join('; ')
 
   const { webRequest } = session.defaultSession
