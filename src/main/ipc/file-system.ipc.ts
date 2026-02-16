@@ -92,11 +92,6 @@ export function registerFileSystemHandlers(): void {
     const checkedPath = validateArgs(fsPathSchema, path)
     const validPath = await validatePath(checkedPath)
     await workspaceService.validateWorkspacePath(validPath)
-    const permissionService = getPermissionService()
-    const perm = await permissionService.check(validPath, 'fs:readFile')
-    if (!perm) {
-      throw new Error(`Permission denied: fs:readFile on ${validPath}`)
-    }
     await checkFileSize(validPath, MAX_READ_SIZE)
     const content = await readFile(validPath, 'utf-8')
     const scanResult = scanForInjection(content, validPath)
@@ -112,11 +107,6 @@ export function registerFileSystemHandlers(): void {
     const checkedPath = validateArgs(fsPathSchema, path)
     const validPath = await validatePath(checkedPath)
     await workspaceService.validateWorkspacePath(validPath)
-    const permissionService = getPermissionService()
-    const perm = await permissionService.check(validPath, 'fs:readFile')
-    if (!perm) {
-      throw new Error(`Permission denied: fs:readFile on ${validPath}`)
-    }
     await checkFileSize(validPath, MAX_READ_SIZE)
     const buffer = await readFile(validPath)
     const base64 = buffer.toString('base64')
@@ -168,11 +158,6 @@ export function registerFileSystemHandlers(): void {
     const checkedPath = validateArgs(fsPathSchema, path)
     const validPath = await validatePath(checkedPath)
     await workspaceService.validateWorkspacePath(validPath)
-    const permissionService = getPermissionService()
-    const perm = await permissionService.check(validPath, 'fs:readDirectory')
-    if (!perm) {
-      throw new Error(`Permission denied: fs:readDirectory on ${validPath}`)
-    }
     const entries = await readdir(validPath, { withFileTypes: true })
     const results = await Promise.all(
       entries.map(async (entry) => {
@@ -206,11 +191,6 @@ export function registerFileSystemHandlers(): void {
     const validated = validateArgs(fsGlobSchema, { pattern, cwd })
     const basePath = validated.cwd ? await validatePath(validated.cwd) : process.cwd()
     await workspaceService.validateWorkspacePath(basePath)
-    const permissionService = getPermissionService()
-    const perm = await permissionService.check(basePath, 'fs:glob')
-    if (!perm) {
-      throw new Error(`Permission denied: fs:glob on ${basePath}`)
-    }
 
     // Block patterns that start at filesystem root
     if (validated.pattern.startsWith('/') || validated.pattern.startsWith('/*')) {
@@ -256,11 +236,6 @@ export function registerFileSystemHandlers(): void {
     // Validate the search path
     const validSearchPath = await validatePath(resolvedPath)
     await workspaceService.validateWorkspacePath(validSearchPath)
-    const permissionService = getPermissionService()
-    const perm = await permissionService.check(validSearchPath, 'fs:grep')
-    if (!perm) {
-      throw new Error(`Permission denied: fs:grep on ${validSearchPath}`)
-    }
 
     const pathStat = await stat(validSearchPath).catch(() => null)
 

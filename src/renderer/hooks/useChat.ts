@@ -1,18 +1,18 @@
 import { useState, useCallback, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { useApiKey } from './useSettings'
+import { useApiKey, useSettings } from './useSettings'
 import { useSkills } from './useSkills'
 import { useUIStore } from '../stores/uiStore'
 import { useAttachmentStore, hashKey } from '../stores/attachmentStore'
 import { generateSystemPrompt } from '../services/ai/system-prompt'
 import {
-  createOpenRouterClient,
   streamChat,
   isApproachingContextLimit,
   isContextTooLargeError,
   compactConversation,
   estimateTokens
 } from '../services/ai/openrouter'
+import { createAIClient } from '../services/ai/client-factory'
 import { tools } from '../services/ai/tools'
 import {
   trackMessageSent,
@@ -57,6 +57,7 @@ interface ConversationState {
 export function useChat() {
   const queryClient = useQueryClient()
   const { hasApiKey } = useApiKey()
+  const { settings } = useSettings()
   const { enabledSkills } = useSkills()
   const { setProcessing, markAsUnread, activeConversationId } = useUIStore()
   const { storeAttachments } = useAttachmentStore()
@@ -105,9 +106,9 @@ export function useChat() {
 
   const sendMessage = useCallback(
     async (content: string, conversationId: string, model: string, attachments?: Attachment[]) => {
-      if (!hasApiKey) {
+      if (settings?.provider !== 'ollama' && !hasApiKey) {
         updateConversationState(conversationId, {
-          error: 'API key not configured. Please set your OpenRouter API key in settings.'
+          error: 'API key not configured. Please set your API key in settings.'
         })
         return
       }
@@ -271,7 +272,12 @@ export function useChat() {
             content: m.content
           }))
 
-          const { summary, keptMessages } = await compactConversation(stringMessages)
+          const { summary, keptMessages } = await compactConversation(
+            stringMessages,
+            6,
+            provider === 'ollama' ? client : undefined,
+            provider === 'ollama' ? model : undefined
+          )
           conversationSummary = summary
 
           if (summary) {
@@ -322,7 +328,17 @@ export function useChat() {
         const toolCallsMap = new Map<string, ToolCall>()
 
         // Stream the response using the agent pattern
-        const client = createOpenRouterClient()
+        const provider = (settings?.provider as 'openrouter' | 'ollama') || 'openrouter'
+        const client = createAIClient(provider, {
+          ollamaBaseUrl: settings?.ollamaBaseUrl
+        })
+
+        // For local models, only expose core tools (file ops, bash, todoWrite)
+        const ollamaSafeTools = ['listDirectory', 'glob', 'grep', 'readFile', 'bash', 'todoWrite']
+        const activeTools = provider === 'ollama'
+          ? Object.fromEntries(Object.entries(tools).filter(([k]) => ollamaSafeTools.includes(k)))
+          : tools
+
         let assistantContent = ''
         let needsParagraphBreak = false // Track if we need a break after tool result
 
@@ -335,7 +351,8 @@ export function useChat() {
             client,
             systemPrompt: streamPrompt,
             messages: streamMessages,
-            tools,
+            tools: activeTools,
+            provider,
             model,
             maxSteps: 15,
             abortSignal: abortController.signal,
@@ -432,7 +449,12 @@ export function useChat() {
               content: m.content
             }))
 
-            const { summary, keptMessages } = await compactConversation(stringMessages, 4)
+            const { summary, keptMessages } = await compactConversation(
+              stringMessages,
+              4,
+              provider === 'ollama' ? client : undefined,
+              provider === 'ollama' ? model : undefined
+            )
 
             if (summary) {
               // Rebuild with compacted history
@@ -529,6 +551,7 @@ export function useChat() {
     },
     [
       hasApiKey,
+      settings?.provider,
       enabledSkills,
       queryClient,
       setProcessing,
