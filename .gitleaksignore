@@ -1,1 +1,20 @@
 d1ed15878ffe3d07ca55e724e9d32956bbd8c995:src/renderer/services/analytics.ts:generic-api-key:5
+
+# Test fixtures: fake credentials used to test credential-scanner detection
+789417c6c60a7b96e1e6e34f8f1e7ef31de18ddf:tests/services/credential-scanner.test.ts:jwt:149
+789417c6c60a7b96e1e6e34f8f1e7ef31de18ddf:tests/services/credential-scanner.test.ts:slack-bot-token:230
+789417c6c60a7b96e1e6e34f8f1e7ef31de18ddf:tests/services/credential-scanner.test.ts:private-key:89
+789417c6c60a7b96e1e6e34f8f1e7ef31de18ddf:tests/services/credential-scanner.test.ts:private-key:103
+789417c6c60a7b96e1e6e34f8f1e7ef31de18ddf:tests/services/credential-scanner.test.ts:generic-api-key:43
+
+# Path-only fingerprints (for commit hook which scans staged changes)
+tests/services/credential-scanner.test.ts:private-key:89
+tests/services/credential-scanner.test.ts:private-key:103
+tests/services/credential-scanner.test.ts:generic-api-key:43
+tests/services/credential-scanner.test.ts:jwt:149
+tests/services/credential-scanner.test.ts:slack-bot-token:230
+
+# Test fixtures: fake API keys used to test auth/secrets IPC validation
+1004bb9c594a8b03cb85214c242671404f892224:tests/ipc/auth-secrets.ipc.test.ts:generic-api-key:185
+1004bb9c594a8b03cb85214c242671404f892224:tests/ipc/auth-secrets.ipc.test.ts:generic-api-key:191
+1004bb9c594a8b03cb85214c242671404f892224:tests/ipc/auth-secrets.ipc.test.ts:generic-api-key:252
